@@ -1,0 +1,415 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<model xmlns="http://www.opengroup.org/xsd/archimate/3.0/"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.opengroup.org/xsd/archimate/3.0/ https://www.opengroup.org/xsd/archimate/3.0/archimate3_Diagram.xsd"
+       identifier="id-model-plan-ahorro-mvp">
+  <name xml:lang="es">Plan de Ahorro Digital - Arquitectura MVP</name>
+  <documentation xml:lang="es">Modelo ArchiMate 3.x refinado para un MVP bancario viable. Incluye simulación, contratación mediante stepper, débito automático, seguimiento, historial y notificaciones. Se excluyen del MVP el crédito con garantía del ahorro, la gamificación con bonificaciones de tasa, el comparador basado en gastos y la cobranza acumulativa avanzada.</documentation>
+
+  <elements>
+    <!-- Grupo 1: Business Goal + Business Architecture -->
+    <element identifier="id-stakeholder-cliente" xsi:type="Stakeholder">
+      <name xml:lang="es">Cliente ahorrador</name>
+    </element>
+    <element identifier="id-stakeholder-banco" xsi:type="Stakeholder">
+      <name xml:lang="es">Banco</name>
+    </element>
+    <element identifier="id-driver-baja-barrera" xsi:type="Driver">
+      <name xml:lang="es">Baja barrera de entrada</name>
+    </element>
+    <element identifier="id-driver-fondeo" xsi:type="Driver">
+      <name xml:lang="es">Fondeo estable y retención</name>
+    </element>
+    <element identifier="id-goal-ahorro" xsi:type="Goal">
+      <name xml:lang="es">Facilitar ahorro planificado y transparente</name>
+    </element>
+    <element identifier="id-goal-captacion" xsi:type="Goal">
+      <name xml:lang="es">Incrementar captación recurrente</name>
+    </element>
+    <element identifier="id-outcome-mvp" xsi:type="Outcome">
+      <name xml:lang="es">MVP usable, medible y operable</name>
+    </element>
+    <element identifier="id-requirement-monto" xsi:type="Requirement">
+      <name xml:lang="es">Aporte mensual desde USD 10</name>
+    </element>
+    <element identifier="id-requirement-transparencia" xsi:type="Requirement">
+      <name xml:lang="es">Tasa, plazo y retorno transparentes</name>
+    </element>
+    <element identifier="id-requirement-control" xsi:type="Requirement">
+      <name xml:lang="es">Consentimiento, trazabilidad y seguridad</name>
+    </element>
+    <element identifier="id-actor-cliente" xsi:type="BusinessActor">
+      <name xml:lang="es">Cliente</name>
+    </element>
+    <element identifier="id-role-ahorrador" xsi:type="BusinessRole">
+      <name xml:lang="es">Ahorrador</name>
+    </element>
+    <element identifier="id-service-plan" xsi:type="BusinessService">
+      <name xml:lang="es">Plan de ahorro digital</name>
+    </element>
+    <element identifier="id-process-simular" xsi:type="BusinessProcess">
+      <name xml:lang="es">Simular retorno</name>
+    </element>
+    <element identifier="id-process-contratar" xsi:type="BusinessProcess">
+      <name xml:lang="es">Configurar y contratar plan</name>
+    </element>
+    <element identifier="id-process-cobrar" xsi:type="BusinessProcess">
+      <name xml:lang="es">Cobrar aporte programado</name>
+    </element>
+    <element identifier="id-process-seguir" xsi:type="BusinessProcess">
+      <name xml:lang="es">Consultar progreso e historial</name>
+    </element>
+    <element identifier="id-process-notificar" xsi:type="BusinessProcess">
+      <name xml:lang="es">Notificar eventos</name>
+    </element>
+    <element identifier="id-object-plan" xsi:type="BusinessObject">
+      <name xml:lang="es">Plan de ahorro</name>
+    </element>
+    <element identifier="id-contract-condiciones" xsi:type="Contract">
+      <name xml:lang="es">Condiciones aceptadas</name>
+    </element>
+    <element identifier="id-event-fecha-debito" xsi:type="BusinessEvent">
+      <name xml:lang="es">Fecha de débito</name>
+    </element>
+
+    <!-- Grupo 2: Application Architecture -->
+    <element identifier="id-app-digital" xsi:type="ApplicationComponent">
+      <name xml:lang="es">Banca web / móvil</name>
+    </element>
+    <element identifier="id-interface-stepper" xsi:type="ApplicationInterface">
+      <name xml:lang="es">Stepper del plan</name>
+    </element>
+    <element identifier="id-app-gateway" xsi:type="ApplicationComponent">
+      <name xml:lang="es">API Gateway</name>
+    </element>
+    <element identifier="id-app-iam" xsi:type="ApplicationComponent">
+      <name xml:lang="es">Identidad y acceso existente</name>
+    </element>
+    <element identifier="id-app-plan" xsi:type="ApplicationComponent">
+      <name xml:lang="es">Servicio Plan de Ahorro</name>
+    </element>
+    <element identifier="id-app-worker" xsi:type="ApplicationComponent">
+      <name xml:lang="es">Scheduler / Debit Worker</name>
+    </element>
+    <element identifier="id-app-core" xsi:type="ApplicationComponent">
+      <name xml:lang="es">Core bancario existente</name>
+    </element>
+    <element identifier="id-app-notify" xsi:type="ApplicationComponent">
+      <name xml:lang="es">Servicio de notificaciones existente</name>
+    </element>
+    <element identifier="id-as-simular" xsi:type="ApplicationService">
+      <name xml:lang="es">API de simulación</name>
+    </element>
+    <element identifier="id-as-planes" xsi:type="ApplicationService">
+      <name xml:lang="es">API de gestión de planes</name>
+    </element>
+    <element identifier="id-as-debitos" xsi:type="ApplicationService">
+      <name xml:lang="es">Orquestación de débitos</name>
+    </element>
+    <element identifier="id-as-seguimiento" xsi:type="ApplicationService">
+      <name xml:lang="es">API de progreso e historial</name>
+    </element>
+    <element identifier="id-as-notificaciones" xsi:type="ApplicationService">
+      <name xml:lang="es">Envío de notificaciones</name>
+    </element>
+    <element identifier="id-data-plan" xsi:type="DataObject">
+      <name xml:lang="es">Plan y calendario de aportes</name>
+    </element>
+    <element identifier="id-data-movimiento" xsi:type="DataObject">
+      <name xml:lang="es">Movimiento e hito</name>
+    </element>
+
+    <!-- Grupo 3: Infrastructure Architecture -->
+    <element identifier="id-node-runtime" xsi:type="Node">
+      <name xml:lang="es">Plataforma de contenedores</name>
+    </element>
+    <element identifier="id-system-runtime" xsi:type="SystemSoftware">
+      <name xml:lang="es">Runtime administrado</name>
+    </element>
+    <element identifier="id-artifact-api" xsi:type="Artifact">
+      <name xml:lang="es">Contenedor plan-ahorro-api</name>
+    </element>
+    <element identifier="id-artifact-worker" xsi:type="Artifact">
+      <name xml:lang="es">Contenedor debit-worker</name>
+    </element>
+    <element identifier="id-tech-db" xsi:type="TechnologyService">
+      <name xml:lang="es">Base de datos relacional</name>
+    </element>
+    <element identifier="id-tech-events" xsi:type="TechnologyService">
+      <name xml:lang="es">Mensajería / eventos</name>
+    </element>
+    <element identifier="id-tech-secrets" xsi:type="TechnologyService">
+      <name xml:lang="es">Secretos y cifrado</name>
+    </element>
+    <element identifier="id-tech-observability" xsi:type="TechnologyService">
+      <name xml:lang="es">Logs, métricas y trazas</name>
+    </element>
+  </elements>
+
+  <relationships>
+    <!-- Motivación y negocio -->
+    <relationship identifier="id-rel-001" source="id-driver-baja-barrera" target="id-goal-ahorro" xsi:type="Influence"/>
+    <relationship identifier="id-rel-002" source="id-driver-fondeo" target="id-goal-captacion" xsi:type="Influence"/>
+    <relationship identifier="id-rel-003" source="id-goal-ahorro" target="id-outcome-mvp" xsi:type="Influence"/>
+    <relationship identifier="id-rel-004" source="id-goal-captacion" target="id-outcome-mvp" xsi:type="Influence"/>
+    <relationship identifier="id-rel-005" source="id-requirement-monto" target="id-goal-ahorro" xsi:type="Realization"/>
+    <relationship identifier="id-rel-006" source="id-requirement-transparencia" target="id-goal-ahorro" xsi:type="Realization"/>
+    <relationship identifier="id-rel-007" source="id-requirement-control" target="id-outcome-mvp" xsi:type="Realization"/>
+    <relationship identifier="id-rel-008" source="id-stakeholder-cliente" target="id-goal-ahorro" xsi:type="Association"/>
+    <relationship identifier="id-rel-009" source="id-stakeholder-banco" target="id-goal-captacion" xsi:type="Association"/>
+    <relationship identifier="id-rel-010" source="id-actor-cliente" target="id-role-ahorrador" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-011" source="id-role-ahorrador" target="id-process-simular" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-012" source="id-role-ahorrador" target="id-process-contratar" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-013" source="id-process-simular" target="id-process-contratar" xsi:type="Triggering"/>
+    <relationship identifier="id-rel-014" source="id-process-contratar" target="id-object-plan" xsi:type="Access" accessType="Write"/>
+    <relationship identifier="id-rel-015" source="id-process-contratar" target="id-contract-condiciones" xsi:type="Access" accessType="Write"/>
+    <relationship identifier="id-rel-016" source="id-event-fecha-debito" target="id-process-cobrar" xsi:type="Triggering"/>
+    <relationship identifier="id-rel-017" source="id-process-cobrar" target="id-process-seguir" xsi:type="Triggering"/>
+    <relationship identifier="id-rel-018" source="id-process-cobrar" target="id-process-notificar" xsi:type="Triggering"/>
+    <relationship identifier="id-rel-019" source="id-process-seguir" target="id-object-plan" xsi:type="Access" accessType="Read"/>
+    <relationship identifier="id-rel-020" source="id-process-contratar" target="id-service-plan" xsi:type="Realization"/>
+    <relationship identifier="id-rel-021" source="id-process-cobrar" target="id-service-plan" xsi:type="Realization"/>
+    <relationship identifier="id-rel-022" source="id-process-seguir" target="id-service-plan" xsi:type="Realization"/>
+    <relationship identifier="id-rel-023" source="id-service-plan" target="id-actor-cliente" xsi:type="Serving"/>
+
+    <!-- Aplicaciones -->
+    <relationship identifier="id-rel-024" source="id-app-digital" target="id-interface-stepper" xsi:type="Composition"/>
+    <relationship identifier="id-rel-025" source="id-interface-stepper" target="id-app-gateway" xsi:type="Serving"/>
+    <relationship identifier="id-rel-026" source="id-app-iam" target="id-app-gateway" xsi:type="Serving"/>
+    <relationship identifier="id-rel-027" source="id-app-plan" target="id-as-simular" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-028" source="id-app-plan" target="id-as-planes" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-029" source="id-app-plan" target="id-as-seguimiento" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-030" source="id-app-worker" target="id-as-debitos" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-031" source="id-app-notify" target="id-as-notificaciones" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-032" source="id-as-simular" target="id-process-simular" xsi:type="Serving"/>
+    <relationship identifier="id-rel-033" source="id-as-planes" target="id-process-contratar" xsi:type="Serving"/>
+    <relationship identifier="id-rel-034" source="id-as-debitos" target="id-process-cobrar" xsi:type="Serving"/>
+    <relationship identifier="id-rel-035" source="id-as-seguimiento" target="id-process-seguir" xsi:type="Serving"/>
+    <relationship identifier="id-rel-036" source="id-as-notificaciones" target="id-process-notificar" xsi:type="Serving"/>
+    <relationship identifier="id-rel-037" source="id-app-plan" target="id-data-plan" xsi:type="Access" accessType="ReadWrite"/>
+    <relationship identifier="id-rel-038" source="id-app-plan" target="id-data-movimiento" xsi:type="Access" accessType="ReadWrite"/>
+    <relationship identifier="id-rel-039" source="id-app-worker" target="id-app-core" xsi:type="Flow">
+      <name xml:lang="es">orden y resultado de débito</name>
+    </relationship>
+    <relationship identifier="id-rel-040" source="id-app-worker" target="id-app-notify" xsi:type="Flow">
+      <name xml:lang="es">evento de cobro</name>
+    </relationship>
+    <relationship identifier="id-rel-041" source="id-app-gateway" target="id-app-plan" xsi:type="Flow">
+      <name xml:lang="es">API segura</name>
+    </relationship>
+
+    <!-- Infraestructura -->
+    <relationship identifier="id-rel-042" source="id-node-runtime" target="id-system-runtime" xsi:type="Composition"/>
+    <relationship identifier="id-rel-043" source="id-node-runtime" target="id-artifact-api" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-044" source="id-node-runtime" target="id-artifact-worker" xsi:type="Assignment"/>
+    <relationship identifier="id-rel-045" source="id-artifact-api" target="id-app-plan" xsi:type="Realization"/>
+    <relationship identifier="id-rel-046" source="id-artifact-worker" target="id-app-worker" xsi:type="Realization"/>
+    <relationship identifier="id-rel-047" source="id-tech-db" target="id-app-plan" xsi:type="Serving"/>
+    <relationship identifier="id-rel-048" source="id-tech-events" target="id-app-worker" xsi:type="Serving"/>
+    <relationship identifier="id-rel-049" source="id-tech-secrets" target="id-app-plan" xsi:type="Serving"/>
+    <relationship identifier="id-rel-050" source="id-tech-secrets" target="id-app-worker" xsi:type="Serving"/>
+    <relationship identifier="id-rel-051" source="id-tech-observability" target="id-app-plan" xsi:type="Serving"/>
+    <relationship identifier="id-rel-052" source="id-tech-observability" target="id-app-worker" xsi:type="Serving"/>
+  </relationships>
+
+  <organizations>
+    <item>
+      <label xml:lang="es">1. Business Goal + Business Architecture</label>
+      <item identifierRef="id-stakeholder-cliente"/>
+      <item identifierRef="id-stakeholder-banco"/>
+      <item identifierRef="id-driver-baja-barrera"/>
+      <item identifierRef="id-driver-fondeo"/>
+      <item identifierRef="id-goal-ahorro"/>
+      <item identifierRef="id-goal-captacion"/>
+      <item identifierRef="id-outcome-mvp"/>
+      <item identifierRef="id-requirement-monto"/>
+      <item identifierRef="id-requirement-transparencia"/>
+      <item identifierRef="id-requirement-control"/>
+      <item identifierRef="id-actor-cliente"/>
+      <item identifierRef="id-role-ahorrador"/>
+      <item identifierRef="id-service-plan"/>
+      <item identifierRef="id-process-simular"/>
+      <item identifierRef="id-process-contratar"/>
+      <item identifierRef="id-process-cobrar"/>
+      <item identifierRef="id-process-seguir"/>
+      <item identifierRef="id-process-notificar"/>
+      <item identifierRef="id-object-plan"/>
+      <item identifierRef="id-contract-condiciones"/>
+      <item identifierRef="id-event-fecha-debito"/>
+    </item>
+    <item>
+      <label xml:lang="es">2. Application Architecture</label>
+      <item identifierRef="id-app-digital"/>
+      <item identifierRef="id-interface-stepper"/>
+      <item identifierRef="id-app-gateway"/>
+      <item identifierRef="id-app-iam"/>
+      <item identifierRef="id-app-plan"/>
+      <item identifierRef="id-app-worker"/>
+      <item identifierRef="id-app-core"/>
+      <item identifierRef="id-app-notify"/>
+      <item identifierRef="id-as-simular"/>
+      <item identifierRef="id-as-planes"/>
+      <item identifierRef="id-as-debitos"/>
+      <item identifierRef="id-as-seguimiento"/>
+      <item identifierRef="id-as-notificaciones"/>
+      <item identifierRef="id-data-plan"/>
+      <item identifierRef="id-data-movimiento"/>
+    </item>
+    <item>
+      <label xml:lang="es">3. Infrastructure Architecture</label>
+      <item identifierRef="id-node-runtime"/>
+      <item identifierRef="id-system-runtime"/>
+      <item identifierRef="id-artifact-api"/>
+      <item identifierRef="id-artifact-worker"/>
+      <item identifierRef="id-tech-db"/>
+      <item identifierRef="id-tech-events"/>
+      <item identifierRef="id-tech-secrets"/>
+      <item identifierRef="id-tech-observability"/>
+    </item>
+  </organizations>
+
+  <views>
+    <diagrams>
+      <view identifier="id-view-mvp" xsi:type="Diagram" viewpoint="Layered">
+        <name xml:lang="es">Plan de Ahorro - Vista MVP en 3 grupos</name>
+        <documentation xml:lang="es">Los tres contenedores representan: negocio y objetivos, aplicaciones e infraestructura. Las capacidades posteriores al MVP quedan fuera del diagrama para proteger tiempo de salida, costo y riesgo operativo.</documentation>
+
+        <!-- Tres contenedores visuales -->
+        <node identifier="id-group-business" xsi:type="Container" x="20" y="20" w="1760" h="580">
+          <label xml:lang="es">1. BUSINESS GOAL + BUSINESS ARCHITECTURE</label>
+          <style lineWidth="2">
+            <lineColor r="196" g="145" b="2"/>
+            <fillColor r="255" g="248" b="220" a="35"/>
+            <font name="Arial" size="14" style="bold"><color r="112" g="79" b="0"/></font>
+          </style>
+        </node>
+        <node identifier="id-group-application" xsi:type="Container" x="20" y="620" w="1760" h="600">
+          <label xml:lang="es">2. APPLICATION ARCHITECTURE</label>
+          <style lineWidth="2">
+            <lineColor r="45" g="121" b="178"/>
+            <fillColor r="222" g="242" b="255" a="35"/>
+            <font name="Arial" size="14" style="bold"><color r="21" g="76" b="110"/></font>
+          </style>
+        </node>
+        <node identifier="id-group-infrastructure" xsi:type="Container" x="20" y="1240" w="1760" h="400">
+          <label xml:lang="es">3. INFRASTRUCTURE ARCHITECTURE</label>
+          <style lineWidth="2">
+            <lineColor r="76" g="145" b="65"/>
+            <fillColor r="228" g="246" b="224" a="35"/>
+            <font name="Arial" size="14" style="bold"><color r="45" g="97" b="37"/></font>
+          </style>
+        </node>
+
+        <!-- Objetivos y requisitos -->
+        <node identifier="id-node-driver-baja" elementRef="id-driver-baja-barrera" xsi:type="Element" x="60" y="70" w="210" h="55"/>
+        <node identifier="id-node-driver-fondeo" elementRef="id-driver-fondeo" xsi:type="Element" x="300" y="70" w="210" h="55"/>
+        <node identifier="id-node-goal-ahorro" elementRef="id-goal-ahorro" xsi:type="Element" x="560" y="65" w="250" h="65"/>
+        <node identifier="id-node-goal-captacion" elementRef="id-goal-captacion" xsi:type="Element" x="840" y="65" w="250" h="65"/>
+        <node identifier="id-node-outcome" elementRef="id-outcome-mvp" xsi:type="Element" x="1150" y="65" w="240" h="65"/>
+        <node identifier="id-node-req-monto" elementRef="id-requirement-monto" xsi:type="Element" x="560" y="160" w="220" h="55"/>
+        <node identifier="id-node-req-transp" elementRef="id-requirement-transparencia" xsi:type="Element" x="810" y="160" w="230" h="55"/>
+        <node identifier="id-node-req-control" elementRef="id-requirement-control" xsi:type="Element" x="1070" y="160" w="250" h="55"/>
+        <node identifier="id-node-st-cliente" elementRef="id-stakeholder-cliente" xsi:type="Element" x="1430" y="65" w="140" h="55"/>
+        <node identifier="id-node-st-banco" elementRef="id-stakeholder-banco" xsi:type="Element" x="1590" y="65" w="140" h="55"/>
+
+        <!-- Arquitectura de negocio -->
+        <node identifier="id-node-actor" elementRef="id-actor-cliente" xsi:type="Element" x="60" y="290" w="140" h="60"/>
+        <node identifier="id-node-role" elementRef="id-role-ahorrador" xsi:type="Element" x="230" y="290" w="140" h="60"/>
+        <node identifier="id-node-proc-sim" elementRef="id-process-simular" xsi:type="Element" x="420" y="275" w="190" h="70"/>
+        <node identifier="id-node-proc-contratar" elementRef="id-process-contratar" xsi:type="Element" x="640" y="275" w="210" h="70"/>
+        <node identifier="id-node-event" elementRef="id-event-fecha-debito" xsi:type="Element" x="690" y="380" w="170" h="55"/>
+        <node identifier="id-node-proc-cobrar" elementRef="id-process-cobrar" xsi:type="Element" x="890" y="275" w="210" h="70"/>
+        <node identifier="id-node-proc-seguir" elementRef="id-process-seguir" xsi:type="Element" x="1140" y="275" w="210" h="70"/>
+        <node identifier="id-node-proc-notif" elementRef="id-process-notificar" xsi:type="Element" x="1390" y="275" w="180" h="70"/>
+        <node identifier="id-node-service-plan" elementRef="id-service-plan" xsi:type="Element" x="760" y="485" w="250" h="70"/>
+        <node identifier="id-node-object-plan" elementRef="id-object-plan" xsi:type="Element" x="1080" y="485" w="190" h="60"/>
+        <node identifier="id-node-contract" elementRef="id-contract-condiciones" xsi:type="Element" x="1310" y="485" w="190" h="60"/>
+        <node identifier="id-node-mvp-note" xsi:type="Label" x="60" y="470" w="600" h="90">
+          <label xml:lang="es">MVP: simulación + varios planes + débito mensual (reintento simple) + progreso/historial + notificaciones.&#10;Después: crédito con garantía, badges/bonos de tasa, comparador con gastos y cobranza acumulativa avanzada.</label>
+          <style><font name="Arial" size="10" style="italic"><color r="90" g="90" b="90"/></font></style>
+        </node>
+
+        <!-- Arquitectura de aplicaciones -->
+        <node identifier="id-node-app-digital" elementRef="id-app-digital" xsi:type="Element" x="60" y="680" w="190" h="70"/>
+        <node identifier="id-node-interface" elementRef="id-interface-stepper" xsi:type="Element" x="290" y="680" w="180" h="70"/>
+        <node identifier="id-node-gateway" elementRef="id-app-gateway" xsi:type="Element" x="520" y="680" w="170" h="70"/>
+        <node identifier="id-node-iam" elementRef="id-app-iam" xsi:type="Element" x="520" y="790" w="190" h="65"/>
+        <node identifier="id-node-app-plan" elementRef="id-app-plan" xsi:type="Element" x="760" y="680" w="210" h="70"/>
+        <node identifier="id-node-app-worker" elementRef="id-app-worker" xsi:type="Element" x="1040" y="680" w="210" h="70"/>
+        <node identifier="id-node-app-core" elementRef="id-app-core" xsi:type="Element" x="1320" y="680" w="190" h="70"/>
+        <node identifier="id-node-app-notify" elementRef="id-app-notify" xsi:type="Element" x="1540" y="680" w="190" h="70"/>
+        <node identifier="id-node-as-sim" elementRef="id-as-simular" xsi:type="Element" x="730" y="820" w="170" h="60"/>
+        <node identifier="id-node-as-planes" elementRef="id-as-planes" xsi:type="Element" x="920" y="820" w="190" h="60"/>
+        <node identifier="id-node-as-debitos" elementRef="id-as-debitos" xsi:type="Element" x="1130" y="820" w="190" h="60"/>
+        <node identifier="id-node-as-seguir" elementRef="id-as-seguimiento" xsi:type="Element" x="1340" y="820" w="190" h="60"/>
+        <node identifier="id-node-as-notif" elementRef="id-as-notificaciones" xsi:type="Element" x="1550" y="820" w="180" h="60"/>
+        <node identifier="id-node-data-plan" elementRef="id-data-plan" xsi:type="Element" x="860" y="1010" w="230" h="65"/>
+        <node identifier="id-node-data-mov" elementRef="id-data-movimiento" xsi:type="Element" x="1140" y="1010" w="210" h="65"/>
+        <node identifier="id-node-api-note" xsi:type="Label" x="60" y="990" w="650" h="120">
+          <label xml:lang="es">Contrato API MVP sugerido:&#10;POST /simulations · POST/GET /savings-plans · POST /savings-plans/{id}/confirm&#10;GET /savings-plans/{id}/progress · eventos ContributionDue/ContributionPosted/ContributionFailed</label>
+          <style><font name="Arial" size="10"><color r="50" g="70" b="90"/></font></style>
+        </node>
+
+        <!-- Arquitectura de infraestructura -->
+        <node identifier="id-view-node-runtime" elementRef="id-node-runtime" xsi:type="Element" x="60" y="1310" w="220" h="70"/>
+        <node identifier="id-node-system-runtime" elementRef="id-system-runtime" xsi:type="Element" x="60" y="1430" w="220" h="65"/>
+        <node identifier="id-node-art-api" elementRef="id-artifact-api" xsi:type="Element" x="350" y="1310" w="220" h="70"/>
+        <node identifier="id-node-art-worker" elementRef="id-artifact-worker" xsi:type="Element" x="350" y="1430" w="220" h="70"/>
+        <node identifier="id-node-tech-db" elementRef="id-tech-db" xsi:type="Element" x="670" y="1340" w="210" h="70"/>
+        <node identifier="id-node-tech-events" elementRef="id-tech-events" xsi:type="Element" x="920" y="1340" w="210" h="70"/>
+        <node identifier="id-node-tech-secrets" elementRef="id-tech-secrets" xsi:type="Element" x="1170" y="1340" w="210" h="70"/>
+        <node identifier="id-node-tech-obs" elementRef="id-tech-observability" xsi:type="Element" x="1420" y="1340" w="230" h="70"/>
+        <node identifier="id-node-infra-note" xsi:type="Label" x="670" y="1480" w="950" h="70">
+          <label xml:lang="es">Reutilizar capacidades bancarias existentes para IAM, core y notificaciones. Desplegar únicamente API, worker y almacenamiento del dominio para reducir costo y tiempo del MVP.</label>
+          <style><font name="Arial" size="10" style="italic"><color r="55" g="85" b="55"/></font></style>
+        </node>
+
+        <!-- Conexiones principales visibles -->
+        <connection identifier="id-con-001" relationshipRef="id-rel-001" xsi:type="Relationship" source="id-node-driver-baja" target="id-node-goal-ahorro"/>
+        <connection identifier="id-con-002" relationshipRef="id-rel-002" xsi:type="Relationship" source="id-node-driver-fondeo" target="id-node-goal-captacion"/>
+        <connection identifier="id-con-003" relationshipRef="id-rel-003" xsi:type="Relationship" source="id-node-goal-ahorro" target="id-node-outcome"/>
+        <connection identifier="id-con-004" relationshipRef="id-rel-004" xsi:type="Relationship" source="id-node-goal-captacion" target="id-node-outcome"/>
+        <connection identifier="id-con-005" relationshipRef="id-rel-005" xsi:type="Relationship" source="id-node-req-monto" target="id-node-goal-ahorro"/>
+        <connection identifier="id-con-006" relationshipRef="id-rel-006" xsi:type="Relationship" source="id-node-req-transp" target="id-node-goal-ahorro"/>
+        <connection identifier="id-con-007" relationshipRef="id-rel-007" xsi:type="Relationship" source="id-node-req-control" target="id-node-outcome"/>
+        <connection identifier="id-con-008" relationshipRef="id-rel-008" xsi:type="Relationship" source="id-node-st-cliente" target="id-node-goal-ahorro"/>
+        <connection identifier="id-con-009" relationshipRef="id-rel-009" xsi:type="Relationship" source="id-node-st-banco" target="id-node-goal-captacion"/>
+        <connection identifier="id-con-010" relationshipRef="id-rel-010" xsi:type="Relationship" source="id-node-actor" target="id-node-role"/>
+        <connection identifier="id-con-011" relationshipRef="id-rel-011" xsi:type="Relationship" source="id-node-role" target="id-node-proc-sim"/>
+        <connection identifier="id-con-012" relationshipRef="id-rel-012" xsi:type="Relationship" source="id-node-role" target="id-node-proc-contratar"/>
+        <connection identifier="id-con-013" relationshipRef="id-rel-013" xsi:type="Relationship" source="id-node-proc-sim" target="id-node-proc-contratar"/>
+        <connection identifier="id-con-014" relationshipRef="id-rel-016" xsi:type="Relationship" source="id-node-event" target="id-node-proc-cobrar"/>
+        <connection identifier="id-con-015" relationshipRef="id-rel-017" xsi:type="Relationship" source="id-node-proc-cobrar" target="id-node-proc-seguir"/>
+        <connection identifier="id-con-016" relationshipRef="id-rel-018" xsi:type="Relationship" source="id-node-proc-cobrar" target="id-node-proc-notif"/>
+        <connection identifier="id-con-017" relationshipRef="id-rel-020" xsi:type="Relationship" source="id-node-proc-contratar" target="id-node-service-plan"/>
+        <connection identifier="id-con-018" relationshipRef="id-rel-021" xsi:type="Relationship" source="id-node-proc-cobrar" target="id-node-service-plan"/>
+        <connection identifier="id-con-019" relationshipRef="id-rel-022" xsi:type="Relationship" source="id-node-proc-seguir" target="id-node-service-plan"/>
+        <connection identifier="id-con-020" relationshipRef="id-rel-023" xsi:type="Relationship" source="id-node-service-plan" target="id-node-actor"/>
+
+        <connection identifier="id-con-021" relationshipRef="id-rel-024" xsi:type="Relationship" source="id-node-app-digital" target="id-node-interface"/>
+        <connection identifier="id-con-022" relationshipRef="id-rel-025" xsi:type="Relationship" source="id-node-interface" target="id-node-gateway"/>
+        <connection identifier="id-con-023" relationshipRef="id-rel-026" xsi:type="Relationship" source="id-node-iam" target="id-node-gateway"/>
+        <connection identifier="id-con-024" relationshipRef="id-rel-027" xsi:type="Relationship" source="id-node-app-plan" target="id-node-as-sim"/>
+        <connection identifier="id-con-025" relationshipRef="id-rel-028" xsi:type="Relationship" source="id-node-app-plan" target="id-node-as-planes"/>
+        <connection identifier="id-con-026" relationshipRef="id-rel-029" xsi:type="Relationship" source="id-node-app-plan" target="id-node-as-seguir"/>
+        <connection identifier="id-con-027" relationshipRef="id-rel-030" xsi:type="Relationship" source="id-node-app-worker" target="id-node-as-debitos"/>
+        <connection identifier="id-con-028" relationshipRef="id-rel-031" xsi:type="Relationship" source="id-node-app-notify" target="id-node-as-notif"/>
+        <connection identifier="id-con-029" relationshipRef="id-rel-037" xsi:type="Relationship" source="id-node-app-plan" target="id-node-data-plan"/>
+        <connection identifier="id-con-030" relationshipRef="id-rel-038" xsi:type="Relationship" source="id-node-app-plan" target="id-node-data-mov"/>
+        <connection identifier="id-con-031" relationshipRef="id-rel-039" xsi:type="Relationship" source="id-node-app-worker" target="id-node-app-core"/>
+        <connection identifier="id-con-032" relationshipRef="id-rel-040" xsi:type="Relationship" source="id-node-app-worker" target="id-node-app-notify"/>
+        <connection identifier="id-con-033" relationshipRef="id-rel-041" xsi:type="Relationship" source="id-node-gateway" target="id-node-app-plan"/>
+
+        <connection identifier="id-con-034" relationshipRef="id-rel-042" xsi:type="Relationship" source="id-view-node-runtime" target="id-node-system-runtime"/>
+        <connection identifier="id-con-035" relationshipRef="id-rel-043" xsi:type="Relationship" source="id-view-node-runtime" target="id-node-art-api"/>
+        <connection identifier="id-con-036" relationshipRef="id-rel-044" xsi:type="Relationship" source="id-view-node-runtime" target="id-node-art-worker"/>
+        <connection identifier="id-con-037" relationshipRef="id-rel-045" xsi:type="Relationship" source="id-node-art-api" target="id-node-app-plan"/>
+        <connection identifier="id-con-038" relationshipRef="id-rel-046" xsi:type="Relationship" source="id-node-art-worker" target="id-node-app-worker"/>
+        <connection identifier="id-con-039" relationshipRef="id-rel-047" xsi:type="Relationship" source="id-node-tech-db" target="id-node-app-plan"/>
+        <connection identifier="id-con-040" relationshipRef="id-rel-048" xsi:type="Relationship" source="id-node-tech-events" target="id-node-app-worker"/>
+        <connection identifier="id-con-041" relationshipRef="id-rel-049" xsi:type="Relationship" source="id-node-tech-secrets" target="id-node-app-plan"/>
+        <connection identifier="id-con-042" relationshipRef="id-rel-052" xsi:type="Relationship" source="id-node-tech-obs" target="id-node-app-worker"/>
+      </view>
+    </diagrams>
+  </views>
+</model>

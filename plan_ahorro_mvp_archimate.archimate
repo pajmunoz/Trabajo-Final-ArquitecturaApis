@@ -1,0 +1,324 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archimate:model xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:archimate="http://www.archimatetool.com/archimate" name="Plan de Ahorro Digital - Arquitectura MVP" id="id-model-plan-ahorro-mvp" version="5.0.0">
+  <folder name="Strategy" id="id-0b11458be0764317b6ff182c7a0f6319" type="strategy"/>
+  <folder name="Business" id="id-694a06e8c15045519f1b8761e8b704ac" type="business">
+    <folder name="1. Business Goal + Business Architecture" id="id-aae337a6d4d743278adf2ce1ebc726ff">
+      <element xsi:type="archimate:BusinessActor" name="Cliente" id="id-actor-cliente"/>
+      <element xsi:type="archimate:BusinessRole" name="Ahorrador" id="id-role-ahorrador"/>
+      <element xsi:type="archimate:BusinessService" name="Plan de ahorro digital" id="id-service-plan"/>
+      <element xsi:type="archimate:BusinessProcess" name="Simular retorno" id="id-process-simular"/>
+      <element xsi:type="archimate:BusinessProcess" name="Configurar y contratar plan" id="id-process-contratar"/>
+      <element xsi:type="archimate:BusinessProcess" name="Cobrar aporte programado" id="id-process-cobrar"/>
+      <element xsi:type="archimate:BusinessProcess" name="Consultar progreso e historial" id="id-process-seguir"/>
+      <element xsi:type="archimate:BusinessProcess" name="Notificar eventos" id="id-process-notificar"/>
+      <element xsi:type="archimate:BusinessObject" name="Plan de ahorro" id="id-object-plan"/>
+      <element xsi:type="archimate:Contract" name="Condiciones aceptadas" id="id-contract-condiciones"/>
+      <element xsi:type="archimate:BusinessEvent" name="Fecha de débito" id="id-event-fecha-debito"/>
+    </folder>
+  </folder>
+  <folder name="Application" id="id-04c65d50a16f4325828a24ba880ea3ed" type="application">
+    <folder name="2. Application Architecture" id="id-2a251395f6d24af68f004f90be635e79">
+      <element xsi:type="archimate:ApplicationComponent" name="Banca web / móvil" id="id-app-digital"/>
+      <element xsi:type="archimate:ApplicationInterface" name="Stepper del plan" id="id-interface-stepper"/>
+      <element xsi:type="archimate:ApplicationComponent" name="API Gateway" id="id-app-gateway"/>
+      <element xsi:type="archimate:ApplicationComponent" name="Identidad y acceso existente" id="id-app-iam"/>
+      <element xsi:type="archimate:ApplicationComponent" name="Servicio Plan de Ahorro" id="id-app-plan"/>
+      <element xsi:type="archimate:ApplicationComponent" name="Scheduler / Debit Worker" id="id-app-worker"/>
+      <element xsi:type="archimate:ApplicationComponent" name="Core bancario existente" id="id-app-core"/>
+      <element xsi:type="archimate:ApplicationComponent" name="Servicio de notificaciones existente" id="id-app-notify"/>
+      <element xsi:type="archimate:ApplicationService" name="API de simulación" id="id-as-simular"/>
+      <element xsi:type="archimate:ApplicationService" name="API de gestión de planes" id="id-as-planes"/>
+      <element xsi:type="archimate:ApplicationService" name="Orquestación de débitos" id="id-as-debitos"/>
+      <element xsi:type="archimate:ApplicationService" name="API de progreso e historial" id="id-as-seguimiento"/>
+      <element xsi:type="archimate:ApplicationService" name="Envío de notificaciones" id="id-as-notificaciones"/>
+      <element xsi:type="archimate:DataObject" name="Plan y calendario de aportes" id="id-data-plan"/>
+      <element xsi:type="archimate:DataObject" name="Movimiento e hito" id="id-data-movimiento"/>
+    </folder>
+  </folder>
+  <folder name="Technology &amp; Physical" id="id-efdc5e54e5374805a815991d324e4942" type="technology">
+    <folder name="3. Infrastructure Architecture" id="id-3aa610b2e9fc412cac5bf3162dded375">
+      <element xsi:type="archimate:Node" name="Plataforma de contenedores" id="id-node-runtime"/>
+      <element xsi:type="archimate:SystemSoftware" name="Runtime administrado" id="id-system-runtime"/>
+      <element xsi:type="archimate:Artifact" name="Contenedor plan-ahorro-api" id="id-artifact-api"/>
+      <element xsi:type="archimate:Artifact" name="Contenedor debit-worker" id="id-artifact-worker"/>
+      <element xsi:type="archimate:TechnologyService" name="Base de datos relacional" id="id-tech-db"/>
+      <element xsi:type="archimate:TechnologyService" name="Mensajería / eventos" id="id-tech-events"/>
+      <element xsi:type="archimate:TechnologyService" name="Secretos y cifrado" id="id-tech-secrets"/>
+      <element xsi:type="archimate:TechnologyService" name="Logs, métricas y trazas" id="id-tech-observability"/>
+    </folder>
+  </folder>
+  <folder name="Motivation" id="id-6d3cf1f7bf8d41dfbce96f783df98687" type="motivation">
+    <folder name="1. Business Goal + Business Architecture" id="id-2124223082d9429ebe9a235217311387">
+      <element xsi:type="archimate:Stakeholder" name="Cliente ahorrador" id="id-stakeholder-cliente"/>
+      <element xsi:type="archimate:Stakeholder" name="Banco" id="id-stakeholder-banco"/>
+      <element xsi:type="archimate:Driver" name="Baja barrera de entrada" id="id-driver-baja-barrera"/>
+      <element xsi:type="archimate:Driver" name="Fondeo estable y retención" id="id-driver-fondeo"/>
+      <element xsi:type="archimate:Goal" name="Facilitar ahorro planificado y transparente" id="id-goal-ahorro"/>
+      <element xsi:type="archimate:Goal" name="Incrementar captación recurrente" id="id-goal-captacion"/>
+      <element xsi:type="archimate:Outcome" name="MVP usable, medible y operable" id="id-outcome-mvp"/>
+      <element xsi:type="archimate:Requirement" name="Aporte mensual desde USD 10" id="id-requirement-monto"/>
+      <element xsi:type="archimate:Requirement" name="Tasa, plazo y retorno transparentes" id="id-requirement-transparencia"/>
+      <element xsi:type="archimate:Requirement" name="Consentimiento, trazabilidad y seguridad" id="id-requirement-control"/>
+    </folder>
+  </folder>
+  <folder name="Implementation &amp; Migration" id="id-c455e8a6640944c5b3dc1971ae78b05c" type="implementation_migration"/>
+  <folder name="Other" id="id-5e41affb2fdb43e1b05ba8b4d28735a4" type="other"/>
+  <folder name="Relations" id="id-ebbbebc7c93e4fe3a2b8663b984d052f" type="relations">
+    <element xsi:type="archimate:InfluenceRelationship" id="id-rel-001" source="id-driver-baja-barrera" target="id-goal-ahorro"/>
+    <element xsi:type="archimate:InfluenceRelationship" id="id-rel-002" source="id-driver-fondeo" target="id-goal-captacion"/>
+    <element xsi:type="archimate:InfluenceRelationship" id="id-rel-003" source="id-goal-ahorro" target="id-outcome-mvp"/>
+    <element xsi:type="archimate:InfluenceRelationship" id="id-rel-004" source="id-goal-captacion" target="id-outcome-mvp"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-rel-005" source="id-requirement-monto" target="id-goal-ahorro"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-rel-006" source="id-requirement-transparencia" target="id-goal-ahorro"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-rel-007" source="id-requirement-control" target="id-outcome-mvp"/>
+    <element xsi:type="archimate:AssociationRelationship" id="id-rel-008" source="id-stakeholder-cliente" target="id-goal-ahorro"/>
+    <element xsi:type="archimate:AssociationRelationship" id="id-rel-009" source="id-stakeholder-banco" target="id-goal-captacion"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-010" source="id-actor-cliente" target="id-role-ahorrador"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-011" source="id-role-ahorrador" target="id-process-simular"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-012" source="id-role-ahorrador" target="id-process-contratar"/>
+    <element xsi:type="archimate:TriggeringRelationship" id="id-rel-013" source="id-process-simular" target="id-process-contratar"/>
+    <element xsi:type="archimate:AccessRelationship" id="id-rel-014" source="id-process-contratar" target="id-object-plan"/>
+    <element xsi:type="archimate:AccessRelationship" id="id-rel-015" source="id-process-contratar" target="id-contract-condiciones"/>
+    <element xsi:type="archimate:TriggeringRelationship" id="id-rel-016" source="id-event-fecha-debito" target="id-process-cobrar"/>
+    <element xsi:type="archimate:TriggeringRelationship" id="id-rel-017" source="id-process-cobrar" target="id-process-seguir"/>
+    <element xsi:type="archimate:TriggeringRelationship" id="id-rel-018" source="id-process-cobrar" target="id-process-notificar"/>
+    <element xsi:type="archimate:AccessRelationship" id="id-rel-019" source="id-process-seguir" target="id-object-plan" accessType="1"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-rel-020" source="id-process-contratar" target="id-service-plan"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-rel-021" source="id-process-cobrar" target="id-service-plan"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-rel-022" source="id-process-seguir" target="id-service-plan"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-023" source="id-service-plan" target="id-actor-cliente"/>
+    <element xsi:type="archimate:CompositionRelationship" id="id-rel-024" source="id-app-digital" target="id-interface-stepper"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-025" source="id-interface-stepper" target="id-app-gateway"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-026" source="id-app-iam" target="id-app-gateway"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-027" source="id-app-plan" target="id-as-simular"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-028" source="id-app-plan" target="id-as-planes"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-029" source="id-app-plan" target="id-as-seguimiento"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-030" source="id-app-worker" target="id-as-debitos"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-031" source="id-app-notify" target="id-as-notificaciones"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-032" source="id-as-simular" target="id-process-simular"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-033" source="id-as-planes" target="id-process-contratar"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-034" source="id-as-debitos" target="id-process-cobrar"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-035" source="id-as-seguimiento" target="id-process-seguir"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-036" source="id-as-notificaciones" target="id-process-notificar"/>
+    <element xsi:type="archimate:AccessRelationship" id="id-rel-037" source="id-app-plan" target="id-data-plan" accessType="3"/>
+    <element xsi:type="archimate:AccessRelationship" id="id-rel-038" source="id-app-plan" target="id-data-movimiento" accessType="3"/>
+    <element xsi:type="archimate:FlowRelationship" name="orden y resultado de débito" id="id-rel-039" source="id-app-worker" target="id-app-core"/>
+    <element xsi:type="archimate:FlowRelationship" name="evento de cobro" id="id-rel-040" source="id-app-worker" target="id-app-notify"/>
+    <element xsi:type="archimate:FlowRelationship" name="API segura" id="id-rel-041" source="id-app-gateway" target="id-app-plan"/>
+    <element xsi:type="archimate:CompositionRelationship" id="id-rel-042" source="id-node-runtime" target="id-system-runtime"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-043" source="id-node-runtime" target="id-artifact-api"/>
+    <element xsi:type="archimate:AssignmentRelationship" id="id-rel-044" source="id-node-runtime" target="id-artifact-worker"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-rel-045" source="id-artifact-api" target="id-app-plan"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-rel-046" source="id-artifact-worker" target="id-app-worker"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-047" source="id-tech-db" target="id-app-plan"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-048" source="id-tech-events" target="id-app-worker"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-049" source="id-tech-secrets" target="id-app-plan"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-050" source="id-tech-secrets" target="id-app-worker"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-051" source="id-tech-observability" target="id-app-plan"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-rel-052" source="id-tech-observability" target="id-app-worker"/>
+  </folder>
+  <folder name="Views" id="id-0b67c200a8514c02b9a5c4b400600200" type="diagrams">
+    <element xsi:type="archimate:ArchimateDiagramModel" name="Plan de Ahorro - Vista MVP en 3 grupos" id="id-view-mvp" viewpoint="layered">
+      <child xsi:type="archimate:Group" id="id-group-business" name="1. BUSINESS GOAL + BUSINESS ARCHITECTURE" font="1|Arial|14.0|1|COCOA|1|" fontColor="#704f00" lineColor="#c49102" textAlignment="1" fillColor="#fff8dc" alpha="89">
+        <bounds x="20" y="20" width="1760" height="580"/>
+      </child>
+      <child xsi:type="archimate:Group" id="id-group-application" name="2. APPLICATION ARCHITECTURE" font="1|Arial|14.0|1|COCOA|1|" fontColor="#154c6e" lineColor="#2d79b2" textAlignment="1" fillColor="#def2ff" alpha="89">
+        <bounds x="20" y="620" width="1760" height="600"/>
+        <child xsi:type="archimate:DiagramObject" id="id-node-app-notify" targetConnections="id-con-032" archimateElement="id-app-notify">
+          <bounds x="1560" y="156" width="190" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-con-028" source="id-node-app-notify" target="id-node-as-notif" archimateRelationship="id-rel-031"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-node-app-core" targetConnections="id-con-031" archimateElement="id-app-core">
+          <bounds x="1560" y="48" width="190" height="70"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-node-as-notif" targetConnections="id-con-028" archimateElement="id-as-notificaciones">
+          <bounds x="1548" y="264" width="180" height="60"/>
+        </child>
+      </child>
+      <child xsi:type="archimate:Group" id="id-group-infrastructure" name="3. INFRASTRUCTURE ARCHITECTURE" font="1|Arial|14.0|1|COCOA|1|" fontColor="#2d6125" lineColor="#4c9141" textAlignment="1" fillColor="#e4f6e0" alpha="89">
+        <bounds x="20" y="1240" width="1760" height="400"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-driver-baja" archimateElement="id-driver-baja-barrera">
+        <bounds x="60" y="70" width="210" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-001" source="id-node-driver-baja" target="id-node-goal-ahorro" archimateRelationship="id-rel-001"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-driver-fondeo" archimateElement="id-driver-fondeo">
+        <bounds x="300" y="70" width="210" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-002" source="id-node-driver-fondeo" target="id-node-goal-captacion" archimateRelationship="id-rel-002"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-goal-ahorro" targetConnections="id-con-001 id-con-005 id-con-006 id-con-008" archimateElement="id-goal-ahorro">
+        <bounds x="560" y="65" width="250" height="65"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-003" source="id-node-goal-ahorro" target="id-node-outcome" archimateRelationship="id-rel-003"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-goal-captacion" targetConnections="id-con-002 id-con-009" archimateElement="id-goal-captacion">
+        <bounds x="840" y="65" width="250" height="65"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-004" source="id-node-goal-captacion" target="id-node-outcome" archimateRelationship="id-rel-004"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-outcome" targetConnections="id-con-003 id-con-004 id-con-007" archimateElement="id-outcome-mvp">
+        <bounds x="1150" y="65" width="240" height="65"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-req-monto" archimateElement="id-requirement-monto">
+        <bounds x="560" y="160" width="220" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-005" source="id-node-req-monto" target="id-node-goal-ahorro" archimateRelationship="id-rel-005"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-req-transp" archimateElement="id-requirement-transparencia">
+        <bounds x="810" y="160" width="230" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-006" source="id-node-req-transp" target="id-node-goal-ahorro" archimateRelationship="id-rel-006"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-req-control" archimateElement="id-requirement-control">
+        <bounds x="1070" y="160" width="250" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-007" source="id-node-req-control" target="id-node-outcome" archimateRelationship="id-rel-007"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-st-cliente" archimateElement="id-stakeholder-cliente">
+        <bounds x="1430" y="65" width="140" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-008" source="id-node-st-cliente" target="id-node-goal-ahorro" archimateRelationship="id-rel-008"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-st-banco" archimateElement="id-stakeholder-banco">
+        <bounds x="1590" y="65" width="140" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-009" source="id-node-st-banco" target="id-node-goal-captacion" archimateRelationship="id-rel-009"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-actor" targetConnections="id-con-020" archimateElement="id-actor-cliente">
+        <bounds x="60" y="290" width="140" height="60"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-010" source="id-node-actor" target="id-node-role" archimateRelationship="id-rel-010"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-role" targetConnections="id-con-010" archimateElement="id-role-ahorrador">
+        <bounds x="230" y="290" width="140" height="60"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-011" source="id-node-role" target="id-node-proc-sim" archimateRelationship="id-rel-011"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-012" source="id-node-role" target="id-node-proc-contratar" archimateRelationship="id-rel-012"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-proc-sim" targetConnections="id-con-011" archimateElement="id-process-simular">
+        <bounds x="420" y="275" width="190" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-013" source="id-node-proc-sim" target="id-node-proc-contratar" archimateRelationship="id-rel-013"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-proc-contratar" targetConnections="id-con-012 id-con-013" archimateElement="id-process-contratar">
+        <bounds x="640" y="275" width="210" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-017" source="id-node-proc-contratar" target="id-node-service-plan" archimateRelationship="id-rel-020"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-event" archimateElement="id-event-fecha-debito">
+        <bounds x="690" y="380" width="170" height="55"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-014" source="id-node-event" target="id-node-proc-cobrar" archimateRelationship="id-rel-016"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-proc-cobrar" targetConnections="id-con-014" archimateElement="id-process-cobrar">
+        <bounds x="890" y="275" width="210" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-015" source="id-node-proc-cobrar" target="id-node-proc-seguir" archimateRelationship="id-rel-017"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-016" source="id-node-proc-cobrar" target="id-node-proc-notif" archimateRelationship="id-rel-018"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-018" source="id-node-proc-cobrar" target="id-node-service-plan" archimateRelationship="id-rel-021"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-proc-seguir" targetConnections="id-con-015" archimateElement="id-process-seguir">
+        <bounds x="1140" y="275" width="210" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-019" source="id-node-proc-seguir" target="id-node-service-plan" archimateRelationship="id-rel-022"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-proc-notif" targetConnections="id-con-016" archimateElement="id-process-notificar">
+        <bounds x="1390" y="275" width="180" height="70"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-service-plan" targetConnections="id-con-017 id-con-018 id-con-019" archimateElement="id-service-plan">
+        <bounds x="760" y="485" width="250" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-020" source="id-node-service-plan" target="id-node-actor" archimateRelationship="id-rel-023"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-object-plan" archimateElement="id-object-plan">
+        <bounds x="1080" y="485" width="190" height="60"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-contract" archimateElement="id-contract-condiciones">
+        <bounds x="1310" y="485" width="190" height="60"/>
+      </child>
+      <child xsi:type="archimate:Note" id="id-node-mvp-note" font="1|Arial|10.0|2|COCOA|1|" fontColor="#5a5a5a" textAlignment="1">
+        <bounds x="60" y="470" width="600" height="90"/>
+        <content>MVP: simulación + varios planes + débito mensual (reintento simple) + progreso/historial + notificaciones.
+Después: crédito con garantía, badges/bonos de tasa, comparador con gastos y cobranza acumulativa avanzada.</content>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-app-digital" archimateElement="id-app-digital">
+        <bounds x="60" y="680" width="190" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-021" source="id-node-app-digital" target="id-node-interface" archimateRelationship="id-rel-024"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-interface" targetConnections="id-con-021" archimateElement="id-interface-stepper">
+        <bounds x="290" y="680" width="180" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-022" source="id-node-interface" target="id-node-gateway" archimateRelationship="id-rel-025"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-gateway" targetConnections="id-con-022 id-con-023" archimateElement="id-app-gateway">
+        <bounds x="520" y="680" width="170" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-033" source="id-node-gateway" target="id-node-app-plan" archimateRelationship="id-rel-041"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-iam" archimateElement="id-app-iam">
+        <bounds x="520" y="790" width="190" height="65"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-023" source="id-node-iam" target="id-node-gateway" archimateRelationship="id-rel-026"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-app-plan" targetConnections="id-con-033 id-con-037 id-con-039 id-con-041" archimateElement="id-app-plan">
+        <bounds x="760" y="680" width="210" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-024" source="id-node-app-plan" target="id-node-as-sim" archimateRelationship="id-rel-027"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-025" source="id-node-app-plan" target="id-node-as-planes" archimateRelationship="id-rel-028"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-026" source="id-node-app-plan" target="id-node-as-seguir" archimateRelationship="id-rel-029"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-029" source="id-node-app-plan" target="id-node-data-plan" archimateRelationship="id-rel-037"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-030" source="id-node-app-plan" target="id-node-data-mov" archimateRelationship="id-rel-038"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-app-worker" targetConnections="id-con-038 id-con-040 id-con-042" archimateElement="id-app-worker">
+        <bounds x="1040" y="680" width="210" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-027" source="id-node-app-worker" target="id-node-as-debitos" archimateRelationship="id-rel-030"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-031" source="id-node-app-worker" target="id-node-app-core" archimateRelationship="id-rel-039"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-032" source="id-node-app-worker" target="id-node-app-notify" archimateRelationship="id-rel-040"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-as-sim" targetConnections="id-con-024" archimateElement="id-as-simular">
+        <bounds x="730" y="820" width="170" height="60"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-as-planes" targetConnections="id-con-025" archimateElement="id-as-planes">
+        <bounds x="920" y="820" width="190" height="60"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-as-debitos" targetConnections="id-con-027" archimateElement="id-as-debitos">
+        <bounds x="1130" y="820" width="190" height="60"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-as-seguir" targetConnections="id-con-026" archimateElement="id-as-seguimiento">
+        <bounds x="1340" y="820" width="190" height="60"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-data-plan" targetConnections="id-con-029" archimateElement="id-data-plan">
+        <bounds x="860" y="1010" width="230" height="65"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-data-mov" targetConnections="id-con-030" archimateElement="id-data-movimiento">
+        <bounds x="1140" y="1010" width="210" height="65"/>
+      </child>
+      <child xsi:type="archimate:Note" id="id-node-api-note" font="1|Arial|10.0|0|COCOA|1|" fontColor="#32465a" textAlignment="1">
+        <bounds x="60" y="990" width="650" height="120"/>
+        <content>Contrato API MVP sugerido:
+POST /simulations · POST/GET /savings-plans · POST /savings-plans/{id}/confirm
+GET /savings-plans/{id}/progress · eventos ContributionDue/ContributionPosted/ContributionFailed</content>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-view-node-runtime" archimateElement="id-node-runtime">
+        <bounds x="60" y="1310" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-034" source="id-view-node-runtime" target="id-node-system-runtime" archimateRelationship="id-rel-042"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-035" source="id-view-node-runtime" target="id-node-art-api" archimateRelationship="id-rel-043"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-036" source="id-view-node-runtime" target="id-node-art-worker" archimateRelationship="id-rel-044"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-system-runtime" targetConnections="id-con-034" archimateElement="id-system-runtime">
+        <bounds x="60" y="1430" width="220" height="65"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-art-api" targetConnections="id-con-035" archimateElement="id-artifact-api">
+        <bounds x="350" y="1310" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-037" source="id-node-art-api" target="id-node-app-plan" archimateRelationship="id-rel-045"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-art-worker" targetConnections="id-con-036" archimateElement="id-artifact-worker">
+        <bounds x="350" y="1430" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-038" source="id-node-art-worker" target="id-node-app-worker" archimateRelationship="id-rel-046"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-tech-db" archimateElement="id-tech-db">
+        <bounds x="670" y="1340" width="210" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-039" source="id-node-tech-db" target="id-node-app-plan" archimateRelationship="id-rel-047"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-tech-events" archimateElement="id-tech-events">
+        <bounds x="920" y="1340" width="210" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-040" source="id-node-tech-events" target="id-node-app-worker" archimateRelationship="id-rel-048"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-tech-secrets" archimateElement="id-tech-secrets">
+        <bounds x="1170" y="1340" width="210" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-041" source="id-node-tech-secrets" target="id-node-app-plan" archimateRelationship="id-rel-049"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-node-tech-obs" archimateElement="id-tech-observability">
+        <bounds x="1420" y="1340" width="230" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-con-042" source="id-node-tech-obs" target="id-node-app-worker" archimateRelationship="id-rel-052"/>
+      </child>
+      <child xsi:type="archimate:Note" id="id-node-infra-note" font="1|Arial|10.0|2|COCOA|1|" fontColor="#375537" textAlignment="1">
+        <bounds x="670" y="1480" width="950" height="70"/>
+        <content>Reutilizar capacidades bancarias existentes para IAM, core y notificaciones. Desplegar únicamente API, worker y almacenamiento del dominio para reducir costo y tiempo del MVP.</content>
+      </child>
+      <documentation>Los tres contenedores representan: negocio y objetivos, aplicaciones e infraestructura. Las capacidades posteriores al MVP quedan fuera del diagrama para proteger tiempo de salida, costo y riesgo operativo.</documentation>
+    </element>
+  </folder>
+  <purpose>Modelo ArchiMate 3.x refinado para un MVP bancario viable. Incluye simulación, contratación mediante stepper, débito automático, seguimiento, historial y notificaciones. Se excluyen del MVP el crédito con garantía del ahorro, la gamificación con bonificaciones de tasa, el comparador basado en gastos y la cobranza acumulativa avanzada.</purpose>
+</archimate:model>
