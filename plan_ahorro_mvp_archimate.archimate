@@ -32,7 +32,7 @@
       <element xsi:type="archimate:ApplicationService" name="API de progreso e historial" id="id-as-seguimiento"/>
       <element xsi:type="archimate:ApplicationService" name="Envío de notificaciones" id="id-as-notificaciones"/>
       <element xsi:type="archimate:DataObject" name="Plan y calendario de aportes" id="id-data-plan"/>
-      <element xsi:type="archimate:DataObject" name="Movimiento e hito" id="id-data-movimiento"/>
+      <element xsi:type="archimate:DataObject" name="Movimiento / ledger de aportes" id="id-data-movimiento"/>
     </folder>
   </folder>
   <folder name="Technology &amp; Physical" id="id-efdc5e54e5374805a815991d324e4942" type="technology">
@@ -56,8 +56,8 @@
       <element xsi:type="archimate:Goal" name="Facilitar ahorro planificado y transparente" id="id-goal-ahorro"/>
       <element xsi:type="archimate:Goal" name="Incrementar captación recurrente" id="id-goal-captacion"/>
       <element xsi:type="archimate:Outcome" name="MVP usable, medible y operable" id="id-outcome-mvp"/>
-      <element xsi:type="archimate:Requirement" name="Aporte mensual desde USD 10" id="id-requirement-monto"/>
-      <element xsi:type="archimate:Requirement" name="Tasa, plazo y retorno transparentes" id="id-requirement-transparencia"/>
+      <element xsi:type="archimate:Requirement" name="Aporte mensual sin monto mínimo ni máximo" id="id-requirement-monto"/>
+      <element xsi:type="archimate:Requirement" name="Tasa, plazo, bloqueo y retorno transparentes" id="id-requirement-transparencia"/>
       <element xsi:type="archimate:Requirement" name="Consentimiento, trazabilidad y seguridad" id="id-requirement-control"/>
     </folder>
   </folder>
@@ -277,8 +277,8 @@ Después: crédito con garantía, badges/bonos de tasa, comparador con gastos y 
       <child xsi:type="archimate:Note" id="id-node-api-note" font="1|Arial|10.0|0|COCOA|1|" fontColor="#32465a" textAlignment="1">
         <bounds x="60" y="990" width="650" height="120"/>
         <content>Contrato API MVP sugerido:
-POST /simulations · POST/GET /savings-plans · POST /savings-plans/{id}/confirm
-GET /savings-plans/{id}/progress · eventos ContributionDue/ContributionPosted/ContributionFailed</content>
+POST /v1/simulaciones · POST/GET /v1/planes-ahorro · POST /v1/planes-ahorro/{id}/bloquear
+GET /v1/planes-ahorro/{id}/progreso · GET /v1/planes-ahorro/{id}/movimientos · eventos AporteProgramado/AporteEjecutado/AporteFallido</content>
       </child>
       <child xsi:type="archimate:DiagramObject" id="id-view-node-runtime" archimateElement="id-node-runtime">
         <bounds x="60" y="1310" width="220" height="70"/>

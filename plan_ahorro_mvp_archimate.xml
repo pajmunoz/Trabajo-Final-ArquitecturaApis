@@ -30,10 +30,10 @@
       <name xml:lang="es">MVP usable, medible y operable</name>
     </element>
     <element identifier="id-requirement-monto" xsi:type="Requirement">
-      <name xml:lang="es">Aporte mensual desde USD 10</name>
+      <name xml:lang="es">Aporte mensual sin monto mínimo ni máximo</name>
     </element>
     <element identifier="id-requirement-transparencia" xsi:type="Requirement">
-      <name xml:lang="es">Tasa, plazo y retorno transparentes</name>
+      <name xml:lang="es">Tasa, plazo, bloqueo y retorno transparentes</name>
     </element>
     <element identifier="id-requirement-control" xsi:type="Requirement">
       <name xml:lang="es">Consentimiento, trazabilidad y seguridad</name>
@@ -116,7 +116,7 @@
       <name xml:lang="es">Plan y calendario de aportes</name>
     </element>
     <element identifier="id-data-movimiento" xsi:type="DataObject">
-      <name xml:lang="es">Movimiento e hito</name>
+      <name xml:lang="es">Movimiento / ledger de aportes</name>
     </element>
 
     <!-- Grupo 3: Infrastructure Architecture -->
@@ -346,7 +346,7 @@
         <node identifier="id-node-data-plan" elementRef="id-data-plan" xsi:type="Element" x="860" y="1010" w="230" h="65"/>
         <node identifier="id-node-data-mov" elementRef="id-data-movimiento" xsi:type="Element" x="1140" y="1010" w="210" h="65"/>
         <node identifier="id-node-api-note" xsi:type="Label" x="60" y="990" w="650" h="120">
-          <label xml:lang="es">Contrato API MVP sugerido:&#10;POST /simulations · POST/GET /savings-plans · POST /savings-plans/{id}/confirm&#10;GET /savings-plans/{id}/progress · eventos ContributionDue/ContributionPosted/ContributionFailed</label>
+          <label xml:lang="es">Contrato API MVP sugerido:&#10;POST /v1/simulaciones · POST/GET /v1/planes-ahorro · POST /v1/planes-ahorro/{id}/bloquear&#10;GET /v1/planes-ahorro/{id}/progreso · GET /v1/planes-ahorro/{id}/movimientos · eventos AporteProgramado/AporteEjecutado/AporteFallido</label>
           <style><font name="Arial" size="10"><color r="50" g="70" b="90"/></font></style>
         </node>
 
