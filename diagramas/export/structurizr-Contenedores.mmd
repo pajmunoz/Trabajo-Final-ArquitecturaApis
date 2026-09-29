@@ -1,0 +1,49 @@
+graph TB
+  linkStyle default fill:#ffffff
+
+  subgraph diagram ["Container View: Sistema de Ahorro Programado"]
+    style diagram fill:#ffffff,stroke:#ffffff
+
+    1["<div style='font-weight: bold'>Cliente Bancario</div><div style='font-size: 70%; margin-top: 0px'>[Person]</div><div style='font-size: 80%; margin-top:10px'>Usuario que gestiona sus<br />planes de ahorro y realiza<br />simulaciones.</div>"]
+    style 1 fill:#08427b,stroke:#052e56,color:#ffffff
+    2["<div style='font-weight: bold'>Core Bancario Legacy</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Sistema bancario central que<br />maneja las cuentas asociadas<br />y saldos primarios.</div>"]
+    style 2 fill:#999999,stroke:#6b6b6b,color:#ffffff
+    3["<div style='font-weight: bold'>Sistema de Notificaciones</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Servicio externo para envío<br />de SMS y correos.</div>"]
+    style 3 fill:#999999,stroke:#6b6b6b,color:#ffffff
+
+    subgraph 4 ["Sistema de Ahorro Programado"]
+      style 4 fill:#ffffff,stroke:#0b4884,color:#0b4884
+
+      10[("<div style='font-weight: bold'>PostgreSQL Database</div><div style='font-size: 70%; margin-top: 0px'>[Container: PostgreSQL 15]</div><div style='font-size: 80%; margin-top:10px'>Tablas clientes, contactos,<br />cuentas, cabecera, detalle,<br />ledger</div>")]
+      style 10 fill:#438dd5,stroke:#2e6295,color:#ffffff
+      11["<div style='font-weight: bold'>Message Broker</div><div style='font-size: 70%; margin-top: 0px'>[Container: RabbitMQ]</div><div style='font-size: 80%; margin-top:10px'>Publicación/suscripción de<br />eventos (EDA)</div>"]
+      style 11 fill:#438dd5,stroke:#2e6295,color:#ffffff
+      12["<div style='font-weight: bold'>Adaptador Core (Fachada)</div><div style='font-size: 70%; margin-top: 0px'>[Container: Spring Boot + Resilience4j]</div><div style='font-size: 80%; margin-top:10px'>Traduce REST/eventos a la<br />interfaz del Core legacy;<br />aplica Circuit Breaker y<br />Retry</div>"]
+      style 12 fill:#438dd5,stroke:#2e6295,color:#ffffff
+      5["<div style='font-weight: bold'>Single Page Application (SPA)</div><div style='font-size: 70%; margin-top: 0px'>[Container: Next.js (React)]</div><div style='font-size: 80%; margin-top:10px'>Interfaz gráfica para el<br />cliente</div>"]
+      style 5 fill:#438dd5,stroke:#2e6295,color:#ffffff
+      6["<div style='font-weight: bold'>API Gateway</div><div style='font-size: 70%; margin-top: 0px'>[Container: Kong Gateway]</div><div style='font-size: 80%; margin-top:10px'>Punto de entrada único, TLS<br />1.3, validación de firma y<br />expiración del JWT, Rate<br />Limiting</div>"]
+      style 6 fill:#438dd5,stroke:#2e6295,color:#ffffff
+      7["<div style='font-weight: bold'>Servicio de Autenticación</div><div style='font-size: 70%; margin-top: 0px'>[Container: Spring Boot + JWT (RS256)]</div><div style='font-size: 80%; margin-top:10px'>Autentica al cliente y emite<br />JWT firmados de corta<br />duración + refresh token</div>"]
+      style 7 fill:#438dd5,stroke:#2e6295,color:#ffffff
+      8["<div style='font-weight: bold'>Ahorro Core API</div><div style='font-size: 70%; margin-top: 0px'>[Container: Spring Boot REST API]</div><div style='font-size: 80%; margin-top:10px'>CRUD de planes, simulación<br />pública, vista de clientes</div>"]
+      style 8 fill:#438dd5,stroke:#2e6295,color:#ffffff
+      9["<div style='font-weight: bold'>Batch Processor</div><div style='font-size: 70%; margin-top: 0px'>[Container: CronJob / Worker]</div><div style='font-size: 80%; margin-top:10px'>Débitos automáticos diarios y<br />reintentos; invoca<br />sp_procesar_debitos_ahorro_programado()</div>"]
+      style 9 fill:#438dd5,stroke:#2e6295,color:#ffffff
+    end
+
+    1-. "<div>Usa</div><div style='font-size: 70%'>[HTTPS]</div>" .->5
+    5-. "<div>Realiza peticiones REST con<br />JWT</div><div style='font-size: 70%'>[HTTPS / TLS 1.3]</div>" .->6
+    6-. "<div>Enruta /auth/login y<br />/auth/refresh</div><div style='font-size: 70%'>[REST]</div>" .->7
+    7-. "<div>Verifica credenciales (hash<br />bcrypt)</div><div style='font-size: 70%'>[JDBC]</div>" .->10
+    6-. "<div>Enruta peticiones<br />autenticadas</div><div style='font-size: 70%'>[REST]</div>" .->8
+    8-. "<div>Consulta vistas y opera<br />tablas (ACID)</div><div style='font-size: 70%'>[JDBC]</div>" .->10
+    8-. "<div>Valida titularidad/saldo de<br />cuenta origen</div><div style='font-size: 70%'>[REST síncrono]</div>" .->12
+    8-. "<div>Publica 'PlanCreado' /<br />'PlanCancelado' y<br />'DebitoSolicitado' (aporte<br />bajo solicitud)</div><div style='font-size: 70%'>[AMQP]</div>" .->11
+    9-. "<div>Ejecuta el SP de débitos y<br />registra resultados en el<br />ledger</div><div style='font-size: 70%'>[JDBC]</div>" .->10
+    9-. "<div>Publica 'DebitoSolicitado' y<br />consume resultados</div><div style='font-size: 70%'>[AMQP]</div>" .->11
+    12-. "<div>Consume 'DebitoSolicitado' y<br />publica 'DebitoEjecutado' /<br />'DebitoFallido'</div><div style='font-size: 70%'>[AMQP]</div>" .->11
+    12-. "<div>Invoca la interfaz legacy<br />(Circuit Breaker + Retry con<br />jitter)</div><div style='font-size: 70%'>[SOAP / REST]</div>" .->2
+    3-. "<div>Consume eventos y envía<br />correos/SMS</div><div style='font-size: 70%'>[AMQP]</div>" .->11
+
+  end
