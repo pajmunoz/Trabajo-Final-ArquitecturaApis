@@ -1,0 +1,29 @@
+workspace "Core Bancario - Módulo de Ahorro Programado" "Sistema para la gestión y ejecución de ahorro programado" {
+
+    model {
+        user = person "Cliente Bancario" "Usuario que gestiona sus planes de ahorro y realiza simulaciones."
+        coreLegacy = softwareSystem "Core Bancario Legacy" "Sistema bancario central que maneja las cuentas asociadas y saldos primarios."
+        notificationSystem = softwareSystem "Sistema de Notificaciones" "Servicio externo para envío de SMS y Correos."
+        
+        ahorroSystem = softwareSystem "Sistema de Ahorro Programado" "Permite crear, simular, debitar y consultar planes de ahorro." {
+            webApp = container "Web / Mobile App" "Interfaz de usuario para clientes" "React / Angular"
+            apiGateway = container "API Gateway" "Punto de entrada, OAuth 2.0 / JWT, Rate Limiting" "Kong / Spring Cloud Gateway"
+            ahorroService = container "Ahorro Microservice" "Lógica de negocio, planes, simulaciones, cancelaciones" "Java Spring Boot / Go"
+            batchEngine = container "Batch Worker Engine" "Ejecución de débitos diarios y reintentos (5 días)" "Python / Go Worker"
+            database = container "PostgreSQL Core DB" "Almacena clientes, contactos, cuentas, cabecera/detalle de ahorro y ledger" "PostgreSQL 15" "Database"
+            eventBroker = container "Event Broker" "Canal desacoplado para eventos EDA" "Apache Kafka / RabbitMQ"
+        }
+
+        # Relaciones de Contexto
+        user -> ahorroSystem "Consulta saldo, proyecta rendimientos y crea/cancela planes"
+        ahorroSystem -> coreLegacy "Sincroniza y desacopla cuentas/saldos vía EDA"
+        ahorroSystem -> notificationSystem "Envía notificaciones de débitos y eventos"
+    }
+
+    views {
+        systemContext ahorroSystem "Contexto" {
+            include *
+            autolayout lr
+        }
+    }
+}
