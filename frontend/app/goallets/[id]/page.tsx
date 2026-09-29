@@ -55,7 +55,7 @@ export default function GoalletDetailPage() {
                 {goallet.nombre}
               </h1>
               {goallet.bloqueado && (
-                <span className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary-container px-2.5 py-1 rounded-full">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-on-secondary-container bg-secondary-container px-2.5 py-1 rounded-full">
                   Fondos bloqueados
                 </span>
               )}
@@ -91,9 +91,9 @@ export default function GoalletDetailPage() {
               </div>
             </div>
             {faltante > 0 && (
-              <div className="flex items-center gap-2.5 bg-surface-container-low px-4 py-3 rounded-sm">
-                <span className="material-symbols-outlined text-primary text-[20px]">timelapse</span>
-                <p className="text-sm text-on-surface">
+              <div className="flex items-center gap-2.5 bg-info-container px-4 py-3 rounded-sm">
+                <span className="material-symbols-outlined text-on-info-container text-[20px]">timelapse</span>
+                <p className="text-sm text-on-info-container">
                   Te faltan <span className="font-semibold">${formatMoney(faltante)}</span> para alcanzar tu objetivo.
                 </p>
               </div>

@@ -22,7 +22,7 @@ export function GoalletCard({ goallet }: { goallet: Goallet }) {
           </div>
         </div>
         {goallet.bloqueado && (
-          <span className="text-[10px] font-bold uppercase tracking-wide text-primary bg-primary-container px-2 py-1 rounded-full shrink-0">
+          <span className="text-[10px] font-bold uppercase tracking-wide text-on-secondary-container bg-secondary-container px-2 py-1 rounded-full shrink-0">
             Bloqueado
           </span>
         )}

@@ -35,7 +35,7 @@ export function AppHeader() {
             type="button"
           >
             <span className="material-symbols-outlined text-[22px]">notifications</span>
-            <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full" />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full" />
           </button>
           <div className="flex items-center gap-2 pl-2">
             <div className="hidden sm:flex flex-col text-right">

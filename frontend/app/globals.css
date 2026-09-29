@@ -1,38 +1,60 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8faff;
-  --foreground: #0f172a;
+  --background: #ffffff;
+  --foreground: #2b2b2b;
 
-  --color-primary: #005a36;
-  --color-primary-dark: #004025;
-  --color-primary-light: #00875a;
+  /* Primary — Banco Galicia's real brand orange, extracted from
+     galicia.ar's computed styles. #C85000 is their solid-button fill
+     (white text on it measures 4.57:1, clears AA). #FA6400 is their
+     brighter "logo/heading-accent" orange — on the real site it's only
+     ever used on large bold text/icons, because on white it only
+     measures ~3:1 (fails AA for normal text), so it's kept here as
+     `primary-light` for big numerals, icons and fills, never for
+     small copy. */
+  --color-primary: #c85000;
+  --color-primary-dark: #9e4000;
+  --color-primary-light: #fa6400;
   --color-on-primary: #ffffff;
-  --color-primary-container: #e8f5e9;
-  --color-on-primary-container: #00714b;
+  --color-primary-container: #fff3eb;
+  --color-on-primary-container: #9e4000;
 
-  --color-secondary: #00875a;
+  /* Secondary — Galicia's real hyperlink blue (#0E7BC4, used for phone
+     numbers/WhatsApp links on the site), repurposed as the app's
+     informational accent so orange stays reserved for actions. */
+  --color-secondary: #0e7bc4;
+  --color-secondary-dark: #0a5d94;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #e8f5e9;
+  --color-secondary-container: #e6f3fb;
+  --color-on-secondary-container: #0a5d94;
 
-  --color-surface: #f8fafc;
+  --color-info-container: #e6f3fb;
+  --color-on-info-container: #0a5d94;
+
+  --color-surface: #ffffff;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f1f8f5;
-  --color-surface-container: #eef2f6;
-  --color-surface-container-high: #e2e8f0;
+  --color-surface-container-low: #f4f4f4;
+  --color-surface-container: #ececec;
+  --color-surface-container-high: #e0e0e0;
 
-  --color-on-surface: #0f172a;
-  --color-on-surface-variant: #475569;
+  /* on-surface/variant — Galicia's real body-copy grays (#2B2B2B is by
+     far the most common text color on the site; #6A6A6A is their
+     secondary/meta text, 5.4:1 contrast on white). */
+  --color-on-surface: #2b2b2b;
+  --color-on-surface-variant: #6a6a6a;
 
-  --color-outline: #e2e8f0;
-  --color-outline-variant: #cbd5e1;
+  --color-outline: #e0e0e0;
+  --color-outline-variant: #d0d0d0;
 
+  /* Error stays a conventional red: Galicia's own site has no red/green
+     in its core palette either, so danger keeps the universal signal
+     rather than overloading orange (which already means "action"). */
   --color-error: #dc2626;
   --color-error-container: #ffdad6;
   --color-on-error-container: #93000a;
 
   --color-warning: #d97706;
-  --color-success: #00875a;
+  --color-success: #c85000;
 }
 
 @theme inline {
@@ -47,8 +69,13 @@
   --color-on-primary-container: var(--color-on-primary-container);
 
   --color-secondary: var(--color-secondary);
+  --color-secondary-dark: var(--color-secondary-dark);
   --color-on-secondary: var(--color-on-secondary);
   --color-secondary-container: var(--color-secondary-container);
+  --color-on-secondary-container: var(--color-on-secondary-container);
+
+  --color-info-container: var(--color-info-container);
+  --color-on-info-container: var(--color-on-info-container);
 
   --color-surface: var(--color-surface);
   --color-surface-container-lowest: var(--color-surface-container-lowest);

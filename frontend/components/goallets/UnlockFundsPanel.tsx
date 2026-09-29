@@ -13,9 +13,9 @@ export function UnlockFundsPanel({ goallet }: { goallet: Goallet }) {
   const perdidaTNA = tasaActualTNA - tasaFinalTNA;
 
   return (
-    <div className="bg-surface-container-lowest rounded-lg p-6 shadow-sm flex flex-col gap-4 border border-primary-container">
+    <div className="bg-surface-container-lowest rounded-lg p-6 shadow-sm flex flex-col gap-4 border border-secondary-container">
       <div className="flex items-start gap-3">
-        <span className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-primary shrink-0">
+        <span className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container shrink-0">
           <span className="material-symbols-outlined text-[20px]">lock_open</span>
         </span>
         <div>
