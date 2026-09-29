@@ -6,7 +6,7 @@
 > **Rúbrica:** *Justificación de Negocio y Anatomía* — 4 puntos
 > **Relacionados:** [`TABLERO-IDEACION.md`](./TABLERO-IDEACION.md) · [`ARQUITECTURA.md`](./ARQUITECTURA.md) · [`RESUMEN-MATERIA.md`](./RESUMEN-MATERIA.md)
 
-**Supuestos del equipo, no datos verificados:** el producto lo lanza un banco ya establecido en Ecuador (existen core bancario, identidad y notificaciones), la moneda es USD, y el segmento objetivo son adultos jóvenes que ya tienen cuenta pero no tienen hábito de ahorro. Las cifras de §5 son ilustrativas. Las afirmaciones de mercado de §1 están planteadas en términos cualitativos a propósito: antes de entregar hay que respaldarlas con fuentes citables (BCE, Superintendencia de Bancos, Global Findex), porque un dato sin fuente resta más de lo que suma.
+**Supuestos del equipo, no datos verificados:** el producto lo lanza un banco ya establecido en Ecuador (existen core bancario y notificaciones), la moneda es USD, y el segmento objetivo son adultos jóvenes que ya tienen cuenta pero no tienen hábito de ahorro. Las cifras de §5 son ilustrativas. Las afirmaciones de mercado de §1 están planteadas en términos cualitativos a propósito: antes de entregar hay que respaldarlas con fuentes citables (BCE, Superintendencia de Bancos, Global Findex), porque un dato sin fuente resta más de lo que suma.
 
 ---
 
@@ -65,8 +65,8 @@ Las cinco dimensiones del diseño de APIs (U1 §1.2) aplicadas a este producto:
 | **Interoperabilidad** | La capacidad de ahorro se expone como contrato REST consumible por la banca web, la PWA y mañana por un socio externo, sin tocar el core bancario |
 | **Modularidad** | Frontend y backend evolucionan por separado: la frontera es el `openapi.yaml`. La tabla de tarifas cambia sin redesplegar la app |
 | **Escalabilidad** | Nuevos tipos de plan se agregan como recursos nuevos, sin refactorizar el núcleo |
-| **Estandarización** | REST + OpenAPI 3.1 + OAuth 2.0 + JSON. Ningún consumidor necesita documentación privada ni SDK propietario |
-| **Seguridad** | OAuth 2.0 con PKCE, tokens fuera del navegador, ledger inmutable y auditoría por movimiento |
+| **Estandarización** | REST + OpenAPI 3.1 + JWT + JSON. Ningún consumidor necesita documentación privada ni SDK propietario |
+| **Seguridad** | JWT firmados de corta duración emitidos por un servicio de autenticación interno, refresh token, ledger inmutable y auditoría por movimiento |
 
 Los objetivos de negocio que el MVP debe poder medir: captar depósito recurrente (saldo bajo gestión y aportes/mes), aumentar la permanencia (% de planes con bloqueo activo), reducir el costo de adquisición (% de aperturas sin intervención humana), y cerrar el embudo de apertura (conversión de simulación a plan creado).
 
@@ -78,7 +78,7 @@ Ubicación en los tres niveles de madurez de U3 §3.2:
 
 | Nivel | En este producto | Estado |
 |---|---|---|
-| **Supervivencia** — conectividad de sistemas | La API integra core bancario, identidad, cobros y notificaciones, que hoy son silos | ✅ MVP |
+| **Supervivencia** — conectividad de sistemas | La API integra core bancario, cobros y notificaciones, que hoy son silos | ✅ MVP |
 | **Ventaja competitiva** — habilitación omnicanal | El mismo contrato sirve a web y móvil sin duplicar lógica | ✅ MVP |
 | **Ventaja competitiva** — socios y monetización | Ahorro embebido: un comercio o fintech ofrece "ahorrá para esto" usando nuestra API | 🔜 Fase 2 |
 | **Diferenciación** — máximo valor de negocio | El historial de cumplimiento se vuelve insumo de scoring crediticio propio | 🔜 Visión |
@@ -108,7 +108,7 @@ La conclusión importa más que el número: el margen unitario es pequeño, **el
 
 ## 6. Ecosistema de APIs
 
-Siguiendo la clasificación de U1 §1.5, el MVP es principalmente de **ecosistema interno**: las APIs sirven a la app propia y quedan disponibles para otros equipos del banco. Hay una porción **pública acotada** —solo la simulación y la consulta de tarifas son anónimas, para permitir simular antes de registrarse— y un **ecosistema de socios** previsto para Fase 2, bajo contrato formal y OAuth con scopes restringidos.
+Siguiendo la clasificación de U1 §1.5, el MVP es principalmente de **ecosistema interno**: las APIs sirven a la app propia y quedan disponibles para otros equipos del banco. Hay una porción **pública acotada** —solo la simulación y la consulta de tarifas son anónimas, para permitir simular antes de registrarse— y un **ecosistema de socios** previsto para Fase 2, bajo contrato formal y credenciales JWT con permisos restringidos.
 
 Exponer la simulación sin autenticación es una decisión de negocio (bajar la barrera de entrada) con consecuencia arquitectónica: es superficie de ataque y de abuso de costo, y por eso lleva rate limiting más estricto que los endpoints autenticados.
 
@@ -126,7 +126,7 @@ Las 8 capas de U1 §1.3 aplicadas a esta API:
 | 4 | **Parámetros** | *Path:* `{planId}` · *Query:* `?estado=`, `?cursor=`, `?limite=` · *Headers:* `Authorization`, `Idempotency-Key`, `X-Request-Id` · *Body:* JSON validado contra el esquema |
 | 5 | **Formato** | JSON. Montos como entero de centavos + ISO 4217. Fechas ISO 8601 UTC. Errores en `application/problem+json` |
 | 6 | **Códigos de estado** | `200` · `201`+`Location` · `202` (cobro aceptado, asíncrono) · `400` · `401` · `403` · `404` · `409` (conflicto de estado) · `429`+`Retry-After` · `500` |
-| 7 | **Autenticación / Autorización** | OAuth 2.0 Authorization Code + PKCE; JWT como formato del access token; scopes por recurso; RBAC (`CLIENTE`, `OPERADOR`, `AUDITOR`); ABAC para titularidad del plan |
+| 7 | **Autenticación / Autorización** | Servicio de autenticación interno que emite JWT (RS256) de corta duración + refresh token; roles y permisos en los claims; RBAC (`CLIENTE`, `OPERADOR`, `AUDITOR`); ABAC para titularidad del plan |
 | 8 | **Documentación** | `contracts/openapi.yaml` (OpenAPI 3.1) como única fuente de verdad, publicado con Swagger UI |
 
 Un ejemplo del viaje completo: el cliente envía `POST /v1/planes-ahorro` **(1)** con verbo de creación **(2)**, el cuerpo con meta, plazo y cuota **(3)**, header `Authorization: Bearer <JWT>` que el gateway valida **(7)** e `Idempotency-Key` para que un reintento de red no cree dos planes. El servicio congela la tarifa, genera el calendario de cuotas y asienta el movimiento inicial en el ledger. Responde `201 Created` **(6)** con `Location` y un JSON **(5)** que incluye el estado del plan y la proyección del monto final.
@@ -139,7 +139,7 @@ Las cuatro dimensiones del contrato digital (U1 §1.4):
 
 | Naturaleza | Cómo se manifiesta |
 |---|---|
-| **Intermediaria** | Es el puente entre el cliente y tres sistemas que él nunca ve: el core bancario, el proveedor de identidad y el motor de notificaciones. El cliente pide "crear mi plan"; la API traduce eso a tres conversaciones distintas |
+| **Intermediaria** | Es el puente entre el cliente y dos sistemas que él nunca ve: el core bancario y el motor de notificaciones. El cliente pide "crear mi plan"; la API traduce eso a conversaciones distintas |
 | **Abstracta** | El consumidor no sabe —ni necesita saber— que el saldo se reconstruye desde un ledger de eventos, que el cobro es un proceso batch con checkpoint, ni que hay un circuit breaker protegiendo la llamada al core. Pide un plan y recibe un saldo |
 | **Contractual** | El `openapi.yaml` define entradas y salidas antes de que exista código. El contrato es doble: el técnico con el desarrollador y el financiero con el cliente, porque la tasa aplicada queda fijada en el plan al contratar |
 | **Evolutiva** | Versionamiento SemVer: los cambios aditivos no rompen integraciones; uno disruptivo exige salto de versión mayor, documentación paralela de v1 y v2 y guía de migración |

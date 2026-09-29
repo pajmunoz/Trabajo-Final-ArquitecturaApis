@@ -29,7 +29,7 @@
 | **RNF-01.1** | p95 < 500 ms en endpoints síncronos | Umbral exigido por la rúbrica |
 | **RNF-01.2** | Procesamiento batch del corte de débitos | |
 | **RNF-01.3** | Escalado horizontal automático | |
-| **RNF-02.1** | OAuth 2.0 + JWT de corta duración | Exigido por la rúbrica |
+| **RNF-02.1** | JWT de corta duración emitido por un servicio de autenticación interno | Exigido por la rúbrica |
 | **RNF-02.2** | TLS 1.3 en tránsito, AES-256 en reposo | |
 | **RNF-02.3** | Consistencia ACID en los movimientos de saldo | |
 | **RNF-03.1** | Desacoplamiento del core legacy vía EDA | |
