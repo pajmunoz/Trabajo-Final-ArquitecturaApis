@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archimate:model xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:archimate="http://www.archimatetool.com/archimate" name="Plan de Ahorro - Fase 2 (simplificado)" id="id-model-fase2" version="5.0.0">
+  <folder name="Strategy" id="id-d00bfd62efac4709af3ae9ae768c5fea" type="strategy"/>
+  <folder name="Business" id="id-f-business" type="business">
+    <element xsi:type="archimate:BusinessActor" name="Cliente" id="id-cliente"/>
+    <element xsi:type="archimate:BusinessService" name="Plan de ahorro digital" id="id-bs"/>
+    <element xsi:type="archimate:BusinessProcess" name="Gestionar plan (simular, crear, consultar, cancelar)" id="id-p_gest"/>
+    <element xsi:type="archimate:BusinessProcess" name="Cobrar aporte programado" id="id-p_cobro"/>
+    <element xsi:type="archimate:BusinessEvent" name="Fecha de débito" id="id-ev"/>
+  </folder>
+  <folder name="Application" id="id-f-application" type="application">
+    <element xsi:type="archimate:ApplicationComponent" name="Servicio de Autenticación (JWT RS256)" id="id-auth"/>
+    <element xsi:type="archimate:ApplicationService" name="API Planes de Ahorro (REST)" id="id-as_api"/>
+    <element xsi:type="archimate:ApplicationService" name="Débito programado" id="id-as_deb"/>
+    <element xsi:type="archimate:ApplicationComponent" name="Banca web (SPA Next.js)" id="id-spa"/>
+    <element xsi:type="archimate:ApplicationComponent" name="API Gateway (Kong: JWT, Rate Limiting)" id="id-gw"/>
+    <element xsi:type="archimate:ApplicationComponent" name="Ahorro Core API (Spring Boot)" id="id-api"/>
+    <element xsi:type="archimate:ApplicationComponent" name="Batch Processor" id="id-batch"/>
+    <element xsi:type="archimate:ApplicationComponent" name="Core Bancario Legacy" id="id-core"/>
+    <element xsi:type="archimate:DataObject" name="Plan y ledger de movimientos" id="id-data"/>
+    <element xsi:type="archimate:ApplicationComponent" name="Adaptador Core (Fachada)" id="id-adapter"/>
+    <element xsi:type="archimate:ApplicationComponent" name="Sistema de Notificaciones" id="id-notif"/>
+  </folder>
+  <folder name="Technology &amp; Physical" id="id-f-technology" type="technology">
+    <element xsi:type="archimate:Node" name="Plataforma de contenedores (Docker)" id="id-node"/>
+    <element xsi:type="archimate:SystemSoftware" name="PostgreSQL 15" id="id-pg"/>
+    <element xsi:type="archimate:SystemSoftware" name="RabbitMQ" id="id-mq"/>
+  </folder>
+  <folder name="Motivation" id="id-f-motivation" type="motivation">
+    <element xsi:type="archimate:Stakeholder" name="Banco" id="id-banco"/>
+    <element xsi:type="archimate:Goal" name="Incrementar captación recurrente" id="id-g_capt"/>
+    <element xsi:type="archimate:Goal" name="Facilitar ahorro planificado" id="id-g_ahorro"/>
+    <element xsi:type="archimate:Requirement" name="Débito automático, trazable y seguro" id="id-req"/>
+    <element xsi:type="archimate:Requirement" name="Débito bajo solicitud del cliente, trazable y seguro" id="id-req2"/>
+  </folder>
+  <folder name="Implementation &amp; Migration" id="id-5b09ed4b46b34a3e84b0f876f0fa593f" type="implementation_migration"/>
+  <folder name="Other" id="id-a7f332f722ba4c8d9ce5585c47600e18" type="other"/>
+  <folder name="Relations" id="id-f-rel" type="relations">
+    <element xsi:type="archimate:AssociationRelationship" id="id-r0" source="id-banco" target="id-g_capt"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r1" source="id-req" target="id-g_capt"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r2" source="id-req" target="id-g_ahorro"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r3" source="id-bs" target="id-req"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r4" source="id-req2" target="id-g_ahorro"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r5" source="id-bs" target="id-req2"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-r6" source="id-bs" target="id-cliente"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r7" source="id-p_gest" target="id-bs"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r8" source="id-p_cobro" target="id-bs"/>
+    <element xsi:type="archimate:TriggeringRelationship" id="id-r9" source="id-ev" target="id-p_cobro"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-r10" source="id-as_api" target="id-p_gest"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-r11" source="id-as_deb" target="id-p_cobro"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r12" source="id-api" target="id-as_api"/>
+    <element xsi:type="archimate:RealizationRelationship" id="id-r13" source="id-batch" target="id-as_deb"/>
+    <element xsi:type="archimate:ServingRelationship" name="REST + JWT" id="id-r14" source="id-gw" target="id-spa"/>
+    <element xsi:type="archimate:ServingRelationship" name="emite JWT (Gateway valida firma)" id="id-r15" source="id-auth" target="id-gw"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-r16" source="id-api" target="id-gw"/>
+    <element xsi:type="archimate:AccessRelationship" id="id-r17" source="id-api" target="id-data" accessType="3"/>
+    <element xsi:type="archimate:AccessRelationship" id="id-r18" source="id-batch" target="id-data" accessType="3"/>
+    <element xsi:type="archimate:ServingRelationship" name="valida cuenta (sync)" id="id-r19" source="id-adapter" target="id-api"/>
+    <element xsi:type="archimate:FlowRelationship" name="DebitoSolicitado (RabbitMQ)" id="id-r20" source="id-batch" target="id-adapter"/>
+    <element xsi:type="archimate:ServingRelationship" name="Circuit Breaker + Retry" id="id-r21" source="id-core" target="id-adapter"/>
+    <element xsi:type="archimate:FlowRelationship" name="eventos del plan" id="id-r22" source="id-api" target="id-notif"/>
+    <element xsi:type="archimate:FlowRelationship" name="eventos de débito" id="id-r23" source="id-batch" target="id-notif"/>
+    <element xsi:type="archimate:CompositionRelationship" id="id-r24" source="id-node" target="id-pg"/>
+    <element xsi:type="archimate:CompositionRelationship" id="id-r25" source="id-node" target="id-mq"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-r26" source="id-pg" target="id-api"/>
+    <element xsi:type="archimate:ServingRelationship" id="id-r27" source="id-mq" target="id-adapter"/>
+  </folder>
+  <folder name="Views" id="id-f-views" type="diagrams">
+    <element xsi:type="archimate:ArchimateDiagramModel" name="Plan de Ahorro - Fase 2 (simplificado)" id="id-view" viewpoint="layered">
+      <child xsi:type="archimate:Group" id="id-g1" name="1. MOTIVACIÓN Y NEGOCIO" fillColor="#fff8dc">
+        <bounds x="24" y="-12" width="1620" height="300"/>
+        <child xsi:type="archimate:DiagramObject" id="id-d-req" targetConnections="id-c3" archimateElement="id-req">
+          <bounds x="540" y="144" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c1" source="id-d-req" target="id-d-g_capt" archimateRelationship="id-r1"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c2" source="id-d-req" target="id-d-g_ahorro" archimateRelationship="id-r2"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-req2" targetConnections="id-c5" archimateElement="id-req2">
+          <bounds x="540" y="36" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c4" source="id-d-req2" target="id-d-g_ahorro" archimateRelationship="id-r4"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-g_ahorro" targetConnections="id-c2 id-c4" archimateElement="id-g_ahorro">
+          <bounds x="276" y="84" width="220" height="70"/>
+        </child>
+      </child>
+      <child xsi:type="archimate:Group" id="id-g2" name="2. APLICACIÓN" fillColor="#e0f4f8">
+        <bounds x="24" y="345" width="1620" height="420"/>
+        <child xsi:type="archimate:DiagramObject" id="id-d-data" targetConnections="id-c17 id-c18" archimateElement="id-data">
+          <bounds x="528" y="48" width="220" height="70"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-spa" targetConnections="id-c14" archimateElement="id-spa">
+          <bounds x="12" y="168" width="220" height="70"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-gw" targetConnections="id-c15 id-c16" archimateElement="id-gw">
+          <bounds x="336" y="180" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c14" source="id-d-gw" target="id-d-spa" archimateRelationship="id-r14"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-auth" archimateElement="id-auth">
+          <bounds x="264" y="48" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c15" source="id-d-auth" target="id-d-gw" archimateRelationship="id-r15"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-notif" targetConnections="id-c22 id-c23" fillColor="#d9d9d9" archimateElement="id-notif">
+          <bounds x="1392" y="180" width="220" height="70"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-api" targetConnections="id-c19 id-c26" archimateElement="id-api">
+          <bounds x="708" y="180" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c12" source="id-d-api" target="id-d-as_api" archimateRelationship="id-r12"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c16" source="id-d-api" target="id-d-gw" archimateRelationship="id-r16"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c17" source="id-d-api" target="id-d-data" archimateRelationship="id-r17"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c22" source="id-d-api" target="id-d-notif" archimateRelationship="id-r22">
+            <bendpoint startX="135" endX="-425"/>
+            <bendpoint startX="135" startY="190" endX="-425" endY="190"/>
+            <bendpoint startX="560" startY="190" endY="190"/>
+          </sourceConnection>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-adapter" targetConnections="id-c20 id-c21 id-c27" archimateElement="id-adapter">
+          <bounds x="708" y="312" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c19" source="id-d-adapter" target="id-d-api" archimateRelationship="id-r19"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-batch" archimateElement="id-batch">
+          <bounds x="1032" y="168" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c13" source="id-d-batch" target="id-d-as_deb" archimateRelationship="id-r13"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c18" source="id-d-batch" target="id-d-data" archimateRelationship="id-r18"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c20" source="id-d-batch" target="id-d-adapter" archimateRelationship="id-r20"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c23" source="id-d-batch" target="id-d-notif" archimateRelationship="id-r23"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-core" fillColor="#d9d9d9" archimateElement="id-core">
+          <bounds x="1224" y="300" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c21" source="id-d-core" target="id-d-adapter" archimateRelationship="id-r21"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-as_deb" targetConnections="id-c13" archimateElement="id-as_deb">
+          <bounds x="1080" y="48" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c11" source="id-d-as_deb" target="id-d-p_cobro" archimateRelationship="id-r11"/>
+        </child>
+      </child>
+      <child xsi:type="archimate:Group" id="id-g3" name="3. TECNOLOGÍA" fillColor="#e4f6e0">
+        <bounds x="24" y="830" width="1620" height="200"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-banco" archimateElement="id-banco">
+        <bounds x="40" y="70" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c0" source="id-d-banco" target="id-d-g_capt" archimateRelationship="id-r0"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-g_capt" targetConnections="id-c0 id-c1" archimateElement="id-g_capt">
+        <bounds x="40" y="190" width="220" height="70"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-cliente" targetConnections="id-c6" archimateElement="id-cliente">
+        <bounds x="1380" y="70" width="220" height="70"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-bs" targetConnections="id-c7 id-c8" archimateElement="id-bs">
+        <bounds x="1100" y="70" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c3" source="id-d-bs" target="id-d-req" archimateRelationship="id-r3"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c5" source="id-d-bs" target="id-d-req2" archimateRelationship="id-r5"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c6" source="id-d-bs" target="id-d-cliente" archimateRelationship="id-r6"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-p_gest" targetConnections="id-c10" archimateElement="id-p_gest">
+        <bounds x="820" y="190" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c7" source="id-d-p_gest" target="id-d-bs" archimateRelationship="id-r7"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-p_cobro" targetConnections="id-c9 id-c11" archimateElement="id-p_cobro">
+        <bounds x="1100" y="190" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c8" source="id-d-p_cobro" target="id-d-bs" archimateRelationship="id-r8"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-ev" archimateElement="id-ev">
+        <bounds x="1380" y="190" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c9" source="id-d-ev" target="id-d-p_cobro" archimateRelationship="id-r9"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-as_api" targetConnections="id-c12" archimateElement="id-as_api">
+        <bounds x="820" y="390" width="220" height="70"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-c10" source="id-d-as_api" target="id-d-p_gest" archimateRelationship="id-r10"/>
+      </child>
+      <child xsi:type="archimate:DiagramObject" id="id-d-node" archimateElement="id-node">
+        <bounds x="40" y="860" width="1560" height="110"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-7bdbe234c32141e4821e0386f9e3ca0a" source="id-d-node" target="id-d-pg" archimateRelationship="id-r24"/>
+        <sourceConnection xsi:type="archimate:Connection" id="id-6810b0e331214fb293459251f3b7a1dc" source="id-d-node" target="id-d-mq" archimateRelationship="id-r25"/>
+        <child xsi:type="archimate:DiagramObject" id="id-d-pg" targetConnections="id-7bdbe234c32141e4821e0386f9e3ca0a" archimateElement="id-pg">
+          <bounds x="216" y="24" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c26" source="id-d-pg" target="id-d-api" archimateRelationship="id-r26"/>
+        </child>
+        <child xsi:type="archimate:DiagramObject" id="id-d-mq" targetConnections="id-6810b0e331214fb293459251f3b7a1dc" archimateElement="id-mq">
+          <bounds x="876" y="24" width="220" height="70"/>
+          <sourceConnection xsi:type="archimate:Connection" id="id-c27" source="id-d-mq" target="id-d-adapter" archimateRelationship="id-r27"/>
+        </child>
+      </child>
+      <child xsi:type="archimate:Note" id="id-note">
+        <bounds x="1100" y="1044" width="520" height="40"/>
+        <content>Gris = sistemas existentes del banco. PostgreSQL y RabbitMQ corren en la plataforma de contenedores.</content>
+      </child>
+    </element>
+  </folder>
+</archimate:model>
