@@ -1,0 +1,89 @@
+Ejecución del pipeline Frontend CI/CD — run 36937975365, intento 2 (commit 18c1e19)
+https://github.com/pajmunoz/Trabajo-Final-ArquitecturaApis/actions/runs/36937975365
+
+JOB Despliegue en Azure: success  (2026-10-01T23:05:11Z → 2026-10-01T23:06:17Z)
+    success  Set up job
+    success  Verificar configuración
+    success  Run azure/login@v2
+    success  Estado de la aplicación
+    success  Run actions/download-artifact@v4
+    success  Run azure/webapps-deploy@v3
+    success  Verificación
+    success  Post Run azure/login@v2
+    success  Complete job
+JOB Lint y compilación: success  (2026-10-01T22:56:08Z → 2026-10-01T22:56:48Z)
+    success  Set up job
+    success  Run actions/checkout@v4
+    success  Run actions/setup-node@v4
+    success  Run npm ci
+    success  Run npm run lint
+    success  Tipos (TypeScript)
+    success  Compilar (standalone)
+    success  Empaquetar
+    success  Run actions/upload-artifact@v4
+    success  Post Run actions/setup-node@v4
+    success  Post Run actions/checkout@v4
+    success  Complete job
+
+Intento 1 del mismo run: falló el inicio de sesión en Azure (AADSTS700213, el subject OIDC del repositorio incluye los IDs numéricos del dueño y del repositorio). Se corrigió la credencial federada y se re-ejecutó el job.
+Run anterior 36936930135 (commit c05036e): falló la verificación de tipos porque los tipos globales de Next.js (.next/types) no existen en un checkout limpio; se agregó 'next typegen' (commit 18c1e19).
+
+Ejecución del pipeline Backend CI/CD — run 36936929992, intento 1 (commit c05036e)
+https://github.com/pajmunoz/Trabajo-Final-ArquitecturaApis/actions/runs/36936929992
+
+JOB Pruebas y contrato: success  (2026-10-01T22:45:15Z → 2026-10-01T22:45:52Z)
+    success  Set up job
+    success  Initialize containers
+    success  Run actions/checkout@v4
+    success  Run actions/setup-node@v4
+    success  Run npm ci
+    success  Tipos (TypeScript)
+    success  Contrato OpenAPI válido
+    success  Pruebas unitarias e integración con cobertura (umbral 80 %)
+    success  Resumen de cobertura
+    success  Run actions/upload-artifact@v4
+    success  Post Run actions/setup-node@v4
+    success  Post Run actions/checkout@v4
+    success  Stop containers
+    success  Complete job
+JOB Configuración: success  (2026-10-01T22:45:15Z → 2026-10-01T22:45:18Z)
+    success  Set up job
+    success  Run if [ -n "$CLAVE" ]; then echo "aws=true" >> "$GITHUB_OUTPUT"; else
+    success  Complete job
+JOB Imagen en ECR: success  (2026-10-01T22:45:54Z → 2026-10-01T22:46:20Z)
+    success  Set up job
+    success  Run actions/checkout@v4
+    success  Run aws-actions/configure-aws-credentials@v4
+    success  Run aws-actions/amazon-ecr-login@v2
+    success  Run echo "imagen=<cuenta>.dkr.ecr.us-east-2.amazonaws.com/billetera-ahorro-backend:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+    success  Run docker/setup-buildx-action@v3
+    success  Run docker/build-push-action@v6
+    success  Post Run docker/build-push-action@v6
+    success  Post Run docker/setup-buildx-action@v3
+    success  Post Run aws-actions/amazon-ecr-login@v2
+    success  Post Run aws-actions/configure-aws-credentials@v4
+    success  Post Run actions/checkout@v4
+    success  Complete job
+JOB Despliegue en EC2: success  (2026-10-01T22:46:22Z → 2026-10-01T22:46:42Z)
+    success  Set up job
+    success  Run aws-actions/configure-aws-credentials@v4
+    success  Ubicar la instancia
+    skipped  Encender la instancia (solo si se pidió)
+    skipped  Instancia apagada
+    success  Desplegar con SSM Run Command
+    success  Prueba de humo pública
+    success  Post Run aws-actions/configure-aws-credentials@v4
+    success  Complete job
+
+Verificación posterior al despliegue del frontend:
+GET https://billetera-ahorro-front.azurewebsites.net/login → 200
+GET https://billetera-ahorro-front.azurewebsites.net/api/v1/tarifas → 200
+
+Ejecución del workflow Azure - encender o apagar — run 36939025972 (acción: apagar, backend: sí)
+https://github.com/pajmunoz/Trabajo-Final-ArquitecturaApis/actions/runs/36939025972
+
+JOB Frontend (Azure): success  (2026-10-01T23:07:14Z → 2026-10-01T23:07:28Z)
+JOB Backend (AWS): success  (2026-10-01T23:07:14Z → 2026-10-01T23:07:56Z)
+    Backend i-07b5f39c0f2cd5eec: stopped
+    Frontend https://billetera-ahorro-front.azurewebsites.net: Stopped (plan F1)
+Comprobación externa: https://billetera-ahorro-front.azurewebsites.net/login → 403 (aplicación detenida); http://3.151.57.252 sin respuesta (instancia detenida).

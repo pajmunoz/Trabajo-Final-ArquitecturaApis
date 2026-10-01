@@ -41,8 +41,8 @@ nombre: billetera-ahorro-github
 region: canadacentral
 - audiencia: api://AzureADTokenExchange
   emisor: https://token.actions.githubusercontent.com
-  nombre: github-main
-  sujeto: repo:pajmunoz/Trabajo-Final-ArquitecturaApis:ref:refs/heads/main
+  nombre: github-main-ids
+  sujeto: repo:pajmunoz@8887803/Trabajo-Final-ArquitecturaApis@1380726328:ref:refs/heads/main
 
 == Rol asignado a la identidad (mínimo privilegio: solo el grupo de recursos)
 - ambito: /subscriptions/<suscripcion>/resourceGroups/billetera-ahorro-rg

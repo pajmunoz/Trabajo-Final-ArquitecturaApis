@@ -2,7 +2,8 @@
 
 Plataforma de planes de ahorro programado dirigida por APIs. Maestría en Software, Universidad Politécnica Salesiana.
 
-- **API desplegada:** `http://3.151.57.252` (HTTPS con TLS 1.3 en `https://3.151.57.252`). La instancia se mantiene apagada fuera de las pruebas; se enciende desde GitHub Actions.
+- **API desplegada:** `http://3.151.57.252` (HTTPS con TLS 1.3 en `https://3.151.57.252`). El backend y el frontend se mantienen apagados fuera de las pruebas; se encienden juntos desde GitHub Actions → *Azure - encender o apagar* (acción `encender`, casilla del backend marcada).
+- **Aplicación web (Azure App Service):** `https://billetera-ahorro-front.azurewebsites.net` — usuario de prueba `pablo.jara@email.com` / `goallet123`.
 - **Documentación de la API (Swagger UI):** `http://3.151.57.252/docs/`
 - **Informe final (PDF):** [`entregables/Informe-Final-Billetera-de-Ahorro.pdf`](entregables/Informe-Final-Billetera-de-Ahorro.pdf)
 
@@ -20,7 +21,7 @@ Plataforma de planes de ahorro programado dirigida por APIs. Maestría en Softwa
 | [`docs/latex/`](docs/latex/) | Fuente LaTeX del informe final |
 | [`docs/contexto/`](docs/contexto/TAREA-FINAL.md) | Enunciado, rúbrica, resumen de la materia y material de clase |
 | [`entregables/`](entregables/README.md) | Lo que se entrega, con el estado de cada ítem |
-| [`.github/workflows/`](.github/workflows/) | CI/CD: pruebas, imagen en ECR y despliegue en AWS |
+| [`.github/workflows/`](.github/workflows/) | CI/CD del backend (AWS) y del frontend (Azure), y encendido/apagado de ambos entornos |
 
 ## Informes por fase
 

@@ -61,7 +61,7 @@ La simulación del plan nuevo se pide al servidor (\texttt{GET /v1/simulaciones}
 Suscripción & Azure for Students. Su política solo permite cinco regiones; se eligió \texttt{canadacentral}, la más cercana a la API en \texttt{us-east-2}. \\
 Plan de App Service & \texttt{billetera-ahorro-plan}, Linux, nivel F1 (gratuito). \\
 Aplicación web & \texttt{billetera-ahorro-front}: Node~24 LTS, servidor \texttt{standalone} de Next.js (\texttt{node server.js}), solo HTTPS, TLS mínimo 1.3 y FTP deshabilitado. \\
-Identidad para CI/CD & Identidad administrada \texttt{billetera-ahorro-github} con credencial federada (OIDC) para la rama \texttt{main} del repositorio y el rol \emph{Website Contributor} limitado al grupo de recursos. No hay contraseñas guardadas en GitHub. \\
+Identidad para CI/CD & Identidad administrada \texttt{billetera-ahorro-github} con credencial federada (OIDC) para la rama \texttt{main} del repositorio (el \emph{subject} incluye los identificadores numéricos del dueño y del repositorio, formato que GitHub envía para este repositorio) y el rol \emph{Website Contributor} limitado al grupo de recursos. No hay contraseñas guardadas en GitHub. \\
 \bottomrule
 \end{tabularx}
 \end{table}
@@ -73,9 +73,12 @@ Dos workflows de GitHub Actions completan el despliegue:
   \item \textbf{Azure - encender o apagar} (\texttt{azure-frontend.yml}): enciende, apaga o consulta la aplicación y, opcionalmente, la instancia EC2 del backend. Así la demostración se levanta con un solo clic y fuera de ella no se consumen recursos.
 \end{itemize}
 
-\begin{pendiente}
-Agregar la ejecución de ambos workflows en GitHub Actions después del primer push con estos cambios.
-\end{pendiente}
+La primera ejecución del pipeline del frontend reveló dos problemas que no aparecían en el entorno local:
+\begin{itemize}
+  \item La verificación de tipos fallaba porque los tipos globales de Next.js (\texttt{.next/types}) no existen en un checkout limpio. Se agregó \texttt{next typegen} antes de \texttt{tsc}.
+  \item El inicio de sesión en Azure fallaba (\texttt{AADSTS700213}), porque GitHub envía para este repositorio un \emph{subject} OIDC con los identificadores numéricos del dueño y del repositorio. Se ajustó la credencial federada.
+\end{itemize}
+Con ambas correcciones, el pipeline compiló, desplegó en App Service y verificó el sitio. Después, el workflow de encendido y apagado detuvo la aplicación web y la instancia EC2 en una sola ejecución (Anexo~\ref{anx:evidencias}).
 
 Las verificaciones del Anexo~\ref{anx:evidencias} confirman lo siguiente:
 \begin{itemize}
