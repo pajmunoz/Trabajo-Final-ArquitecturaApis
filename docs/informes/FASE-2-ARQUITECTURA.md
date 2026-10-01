@@ -10,13 +10,13 @@ Docente: Ing. Patsy Malena Prieto, MSc.
 
 **Integrantes:**
 
-1. ______________________
-2. ______________________
-3. ______________________
-4. ______________________
-5. ______________________
+1. Carlos Adrian Espinoza Alvarez
+2. Pablo Jara
+3. Miguel Lara
+4. Carina Torres
+5. Sebastián Uyaguari
 
-Fecha: ____________________
+Fecha: 5 de octubre de 2026
 
 ---
 
