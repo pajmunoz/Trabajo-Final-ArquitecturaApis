@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { useGoalletStore } from "@/lib/store";
 import { iconosDisponibles } from "@/lib/mock-data";
 
-export default function NuevoGoalletPage() {
+function NuevoGoalletContent() {
   const router = useRouter();
   const crearGoallet = useGoalletStore((s) => s.crearGoallet);
 
@@ -56,8 +57,6 @@ export default function NuevoGoalletPage() {
   }
 
   return (
-    <>
-      <AppHeader />
       <main className="flex-1 w-full">
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-5">
           <Link
@@ -199,6 +198,16 @@ export default function NuevoGoalletPage() {
           </form>
         </div>
       </main>
+  );
+}
+
+export default function NuevoGoalletPage() {
+  return (
+    <>
+      <AppHeader />
+      <RequireAuth>
+        <NuevoGoalletContent />
+      </RequireAuth>
       <AppFooter />
     </>
   );

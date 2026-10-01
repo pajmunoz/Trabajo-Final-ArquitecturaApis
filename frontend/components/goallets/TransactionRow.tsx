@@ -45,10 +45,10 @@ export function TransactionRow({ movimiento }: { movimiento: Movimiento }) {
             positivo ? "text-primary" : "text-error"
           }`}
         >
-          {positivo ? "+" : "-"}${formatMoney(Math.abs(movimiento.monto))}
+          {positivo ? "+" : "-"}{formatMoney(Math.abs(movimiento.monto))}
         </span>
         <span className="block text-[10px] uppercase tracking-wide text-on-surface-variant">
-          Saldo ${formatMoney(movimiento.saldoResultante)}
+          Saldo {formatMoney(movimiento.saldoResultante)}
         </span>
       </div>
     </div>

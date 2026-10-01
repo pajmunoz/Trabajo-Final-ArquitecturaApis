@@ -3,20 +3,26 @@
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { GoalletCard } from "@/components/goallets/GoalletCard";
 import { useGoalletStore } from "@/lib/store";
 import { formatMoney } from "@/lib/format";
 
-export default function GoalletsPage() {
+function GoalletsContent() {
   const goallets = useGoalletStore((s) => s.goallets);
   const totalAhorrado = goallets.reduce((acc, g) => acc + g.montoActual, 0);
   const totalMeta = goallets.reduce((acc, g) => acc + g.montoMeta, 0);
 
   return (
-    <>
-      <AppHeader />
       <main className="flex-1 w-full">
         <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-1 text-sm text-on-surface-variant hover:text-primary transition-colors w-fit"
+          >
+            <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+            Volver al Dashboard
+          </Link>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="font-headline text-headline-lg text-on-surface tracking-tight">
@@ -42,10 +48,10 @@ export default function GoalletsPage() {
               </span>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="font-headline text-currency text-on-surface">
-                  ${formatMoney(totalAhorrado)}
+                  {formatMoney(totalAhorrado)}
                 </span>
                 <span className="text-sm text-on-surface-variant">
-                  de ${formatMoney(totalMeta)} en metas
+                  de {formatMoney(totalMeta)} en metas
                 </span>
               </div>
             </div>
@@ -74,6 +80,16 @@ export default function GoalletsPage() {
           )}
         </div>
       </main>
+  );
+}
+
+export default function GoalletsPage() {
+  return (
+    <>
+      <AppHeader />
+      <RequireAuth>
+        <GoalletsContent />
+      </RequireAuth>
       <AppFooter />
     </>
   );

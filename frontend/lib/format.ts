@@ -1,8 +1,8 @@
 export function formatMoney(value: number) {
-  return value.toLocaleString("es-AR", {
+  return `US$${value.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  });
+  })}`;
 }
 
 export function formatDate(iso: string) {

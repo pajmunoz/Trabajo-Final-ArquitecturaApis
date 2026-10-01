@@ -31,7 +31,7 @@ export function BalanceHero({ goallet }: { goallet: Goallet }) {
               </span>
               <span className="text-sm text-on-surface">Rendimiento reciente:</span>
               <span className="text-sm text-on-surface font-semibold">
-                +${formatMoney(rendimientoMes.monto)}
+                +{formatMoney(rendimientoMes.monto)}
               </span>
             </div>
           )}

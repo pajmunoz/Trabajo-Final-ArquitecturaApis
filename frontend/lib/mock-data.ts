@@ -1,4 +1,4 @@
-import type { Goallet } from "./types";
+import type { Goallet, Usuario } from "./types";
 
 export const goalletsIniciales: Goallet[] = [
   {
@@ -140,6 +140,76 @@ export const goalletsIniciales: Goallet[] = [
         monto: 300,
         fecha: "2026-03-01T09:00:00",
         saldoResultante: 3400,
+      },
+    ],
+  },
+];
+
+export const usuariosMock: Usuario[] = [
+  {
+    id: "u1",
+    nombre: "Pablo Jara",
+    email: "pablo.jara@galicia.com.ar",
+    password: "goallet123",
+    cuentas: [
+      {
+        id: "cta-1",
+        tipo: "Caja de Ahorro",
+        alias: "pablo.jara.goallet",
+        numero: "0070123420000045678901",
+        moneda: "USD",
+        saldo: 4528.3,
+      },
+      {
+        id: "cta-2",
+        tipo: "Cuenta Corriente",
+        alias: "pablo.jara.negocios",
+        numero: "0070123430000098765432",
+        moneda: "USD",
+        saldo: 1184.5,
+      },
+      {
+        id: "cta-3",
+        tipo: "Caja de Ahorro en Dólares",
+        alias: "pablo.jara.usd",
+        numero: "0070123440000011223344",
+        moneda: "USD",
+        saldo: 2340.5,
+      },
+    ],
+    tarjetas: [
+      {
+        id: "tc-1",
+        marca: "Visa",
+        nombreTitular: "PABLO JARA",
+        numeroEnmascarado: "4521 •••• •••• 3098",
+        saldoActual: 864.3,
+        limite: 4500,
+        vencimiento: "08/29",
+        colorDesde: "#c85000",
+        colorHasta: "#9e4000",
+      },
+      {
+        id: "tc-2",
+        marca: "Mastercard",
+        nombreTitular: "PABLO JARA",
+        numeroEnmascarado: "5412 •••• •••• 7761",
+        saldoActual: 239.8,
+        limite: 3000,
+        vencimiento: "02/28",
+        colorDesde: "#2b2b2b",
+        colorHasta: "#0a0a0a",
+      },
+      {
+        id: "tc-3",
+        marca: "Visa",
+        nombreTitular: "PABLO JARA",
+        numeroEnmascarado: "4916 •••• •••• 5214",
+        saldoActual: 0,
+        limite: 1500,
+        vencimiento: "11/27",
+        colorDesde: "#0e7bc4",
+        colorHasta: "#0a5d94",
       },
     ],
   },

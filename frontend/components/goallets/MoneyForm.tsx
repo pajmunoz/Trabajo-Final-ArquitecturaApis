@@ -76,7 +76,7 @@ export function MoneyForm({
         <QuickAmountChips selected={monto} onSelect={(m) => { setMonto(m); setError(null); }} />
         {!esAporte && (
           <p className="text-xs text-on-surface-variant">
-            Disponible para retirar: ${formatMoney(disponible)}
+            Disponible para retirar: {formatMoney(disponible)}
           </p>
         )}
       </div>

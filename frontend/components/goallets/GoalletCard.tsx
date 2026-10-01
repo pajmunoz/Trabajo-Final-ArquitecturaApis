@@ -30,10 +30,10 @@ export function GoalletCard({ goallet }: { goallet: Goallet }) {
 
       <div className="mt-4 flex items-baseline gap-1">
         <span className="font-headline text-currency text-on-surface">
-          ${formatMoney(goallet.montoActual)}
+          {formatMoney(goallet.montoActual)}
         </span>
         <span className="text-sm text-on-surface-variant">
-          de ${formatMoney(goallet.montoMeta)}
+          de {formatMoney(goallet.montoMeta)}
         </span>
       </div>
 

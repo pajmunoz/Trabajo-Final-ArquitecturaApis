@@ -48,3 +48,33 @@ export interface NuevoGoalletInput {
   fechaLimite: string;
   bloqueado: boolean;
 }
+
+export interface Cuenta {
+  id: string;
+  tipo: string;
+  alias: string;
+  numero: string;
+  moneda: "USD";
+  saldo: number;
+}
+
+export interface TarjetaCredito {
+  id: string;
+  marca: "Visa" | "Mastercard";
+  nombreTitular: string;
+  numeroEnmascarado: string;
+  saldoActual: number;
+  limite: number;
+  vencimiento: string;
+  colorDesde: string;
+  colorHasta: string;
+}
+
+export interface Usuario {
+  id: string;
+  nombre: string;
+  email: string;
+  password: string;
+  cuentas: Cuenta[];
+  tarjetas: TarjetaCredito[];
+}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { BalanceHero } from "@/components/goallets/BalanceHero";
 import { BoosterCard } from "@/components/goallets/BoosterCard";
 import { ProgressBar } from "@/components/goallets/ProgressBar";
@@ -12,25 +13,21 @@ import { UnlockFundsPanel } from "@/components/goallets/UnlockFundsPanel";
 import { useGoalletStore } from "@/lib/store";
 import { formatDate, formatMoney } from "@/lib/format";
 
-export default function GoalletDetailPage() {
+function GoalletDetailContent() {
   const { id } = useParams<{ id: string }>();
   const goallet = useGoalletStore((s) => s.goallets.find((g) => g.id === id));
   const toggleBooster = useGoalletStore((s) => s.toggleBooster);
 
   if (!goallet) {
     return (
-      <>
-        <AppHeader />
-        <main className="flex-1 w-full">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-16 text-center">
-            <p className="text-on-surface-variant">No encontramos ese Goallet.</p>
-            <Link href="/goallets" className="text-primary font-semibold hover:underline">
-              Volver a Mis Goallets
-            </Link>
-          </div>
-        </main>
-        <AppFooter />
-      </>
+      <main className="flex-1 w-full">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-16 text-center">
+          <p className="text-on-surface-variant">No encontramos ese Goallet.</p>
+          <Link href="/goallets" className="text-primary font-semibold hover:underline">
+            Volver a Mis Goallets
+          </Link>
+        </div>
+      </main>
     );
   }
 
@@ -38,8 +35,6 @@ export default function GoalletDetailPage() {
   const faltante = Math.max(0, goallet.montoMeta - goallet.montoActual);
 
   return (
-    <>
-      <AppHeader />
       <main className="flex-1 w-full">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-5">
           <div className="flex flex-col gap-1">
@@ -77,9 +72,9 @@ export default function GoalletDetailPage() {
               </div>
               <div className="text-left sm:text-right">
                 <span className="font-headline text-headline-sm text-on-surface font-bold">
-                  ${formatMoney(goallet.montoActual)}
+                  {formatMoney(goallet.montoActual)}
                 </span>
-                <span className="text-sm text-on-surface-variant"> de ${formatMoney(goallet.montoMeta)}</span>
+                <span className="text-sm text-on-surface-variant"> de {formatMoney(goallet.montoMeta)}</span>
               </div>
             </div>
             <div className="flex flex-col gap-2 pt-1">
@@ -87,14 +82,14 @@ export default function GoalletDetailPage() {
               <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
                 <span>0%</span>
                 <span className="font-bold text-primary text-sm">{percent.toFixed(0)}% completado</span>
-                <span>Meta: ${formatMoney(goallet.montoMeta)}</span>
+                <span>Meta: {formatMoney(goallet.montoMeta)}</span>
               </div>
             </div>
             {faltante > 0 && (
               <div className="flex items-center gap-2.5 bg-info-container px-4 py-3 rounded-sm">
                 <span className="material-symbols-outlined text-on-info-container text-[20px]">timelapse</span>
                 <p className="text-sm text-on-info-container">
-                  Te faltan <span className="font-semibold">${formatMoney(faltante)}</span> para alcanzar tu objetivo.
+                  Te faltan <span className="font-semibold">{formatMoney(faltante)}</span> para alcanzar tu objetivo.
                 </p>
               </div>
             )}
@@ -139,6 +134,16 @@ export default function GoalletDetailPage() {
           </div>
         </div>
       </main>
+  );
+}
+
+export default function GoalletDetailPage() {
+  return (
+    <>
+      <AppHeader />
+      <RequireAuth>
+        <GoalletDetailContent />
+      </RequireAuth>
       <AppFooter />
     </>
   );
