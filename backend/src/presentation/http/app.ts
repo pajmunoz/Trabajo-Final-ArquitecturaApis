@@ -19,7 +19,7 @@ import {
 } from './controllers/otros.controller.js';
 import { PlanesController } from './controllers/planes.controller.js';
 import * as dto from './dtos/dtos.js';
-import { cacheable, exigirContenido, requestId, validar } from './middlewares/comunes.middleware.js';
+import { cacheable, exigirContenido, requestId, sinCache, validar } from './middlewares/comunes.middleware.js';
 import { manejadorErrores, rutaNoEncontrada } from './middlewares/errores.middleware.js';
 import { idempotencia } from './middlewares/idempotencia.middleware.js';
 import { autenticar, requerir } from './middlewares/seguridad.middleware.js';
@@ -93,8 +93,8 @@ export function crearApiApp(d: DependenciasApi): Express {
   v1.get('/tarifas', cacheable(300), simulacion.tarifas);
   v1.get('/simulaciones', validar(dto.simulacionQuery, 'query'), cacheable(300), simulacion.simular);
 
-  // Desde aquí, todo exige JWT válido.
-  v1.use(autenticar(d.tokens));
+  // Desde aquí, todo exige JWT válido y nada se guarda en caché.
+  v1.use(autenticar(d.tokens), sinCache);
   const idem = idempotencia(d.idempotencia, d.logger);
   const conPlan = validar(dto.planIdParams, 'params');
 

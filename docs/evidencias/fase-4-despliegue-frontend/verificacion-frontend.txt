@@ -1,0 +1,27 @@
+Verificación del frontend desplegado en Azure App Service — 2026-10-01T17:45Z
+Frontend: https://billetera-ahorro-front.azurewebsites.net   ·   Backend (API Gateway en AWS): http://3.151.57.252
+
+== Páginas servidas por Next.js (standalone, Node 24)
+GET /login → 200  (0.623600s)
+GET /dashboard → 200  (0.668361s)
+GET /goallets → 200  (0.512479s)
+GET /goallets/new → 200  (0.503380s)
+
+== Proxy del mismo origen /api → API Gateway (sin contenido mixto ni CORS)
+GET /api/v1/tarifas → 200  (0.636085s)
+{"moneda":"USD","vigenteDesde":"2026-09-01","tramos":[{"plazoMinimoMeses":1,"plazoMaximoMeses":11,"tasaBaseAnual":4,"bonoBloqueoAnual":1},{"plazoMinimoMeses":12,"plazoMaximoMeses":23,"tasaBaseAnual":4 …
+GET /api/v1/planes-ahorro sin token → 401 (lo rechaza el plugin jwt de Kong)
+GET /api/v1/simulaciones?montoMetaCentavos=120000&fechaObjetivo=2027-10-01&bloqueado=true → 200
+
+== Solo HTTPS
+GET http://billetera-ahorro-front.azurewebsites.net/login → 301 → https://billetera-ahorro-front.azurewebsites.net/login
+
+== TLS (versión mínima 1.3)
+-tls1_2: rechazado (alert protocol version)
+-tls1_3: New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+
+== Cabeceras de respuesta
+HTTP/2 200 
+content-type: text/html; charset=utf-8
+cache-control: s-maxage=31536000
+x-powered-by: Next.js

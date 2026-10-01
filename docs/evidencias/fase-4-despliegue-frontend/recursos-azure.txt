@@ -1,0 +1,49 @@
+Recursos del frontend en Azure (suscripción Azure for Students, enmascarada) — 2026-10-01T17:44Z
+
+== Política de la suscripción: regiones permitidas
+canadacentral	belgiumcentral	mexicocentral	francecentral	denmarkeast
+
+== Grupo de recursos
+etiquetas:
+  Proyecto: billetera-ahorro
+nombre: billetera-ahorro-rg
+region: canadacentral
+
+== Plan de App Service
+instancias: 1
+nivel: Free
+nombre: billetera-ahorro-plan
+region: Canada Central
+sku: F1
+so: linux
+
+== Aplicación web
+estado: Running
+nombre: billetera-ahorro-front
+plan: billetera-ahorro-plan
+soloHttps: true
+url: billetera-ahorro-front.azurewebsites.net
+alwaysOn: false
+arranque: node server.js
+ftps: Disabled
+http2: true
+runtime: NODE|24-lts
+tlsMinimo: '1.3'
+
+== Configuración de la aplicación (nombres y valores no sensibles)
+Nombre                          Valor
+------------------------------  ----------
+SCM_DO_BUILD_DURING_DEPLOYMENT  false
+NODE_ENV                        production
+
+== Identidad para GitHub Actions (OIDC, sin secretos de larga duración)
+nombre: billetera-ahorro-github
+region: canadacentral
+- audiencia: api://AzureADTokenExchange
+  emisor: https://token.actions.githubusercontent.com
+  nombre: github-main
+  sujeto: repo:pajmunoz/Trabajo-Final-ArquitecturaApis:ref:refs/heads/main
+
+== Rol asignado a la identidad (mínimo privilegio: solo el grupo de recursos)
+- ambito: /subscriptions/<suscripcion>/resourceGroups/billetera-ahorro-rg
+  rol: Website Contributor

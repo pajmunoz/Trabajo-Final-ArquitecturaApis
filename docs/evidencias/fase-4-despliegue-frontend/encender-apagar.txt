@@ -1,0 +1,8 @@
+Control de costos: apagar y encender el frontend (mismos comandos del workflow «Azure - encender o apagar») — 2026-10-01T17:45Z
+$ az webapp stop -g billetera-ahorro-rg -n billetera-ahorro-front
+estado: Stopped
+GET /login → 403 (aplicación detenida)
+$ az webapp start -g billetera-ahorro-rg -n billetera-ahorro-front
+estado: Running
+GET /login → 200 (0.602331s, después de que la aplicación volvió a responder)
+Plan: F1 (Free) — sin costo; mientras la aplicación está detenida no consume la cuota diaria de CPU del plan gratuito.

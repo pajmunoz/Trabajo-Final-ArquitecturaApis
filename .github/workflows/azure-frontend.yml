@@ -1,0 +1,78 @@
+# Enciende, apaga o consulta el frontend en Azure App Service (y, si se elige, también la
+# instancia EC2 del backend) para levantar la demo con un solo clic y no generar costos.
+# Con el plan F1 (gratis) apagar solo detiene la aplicación; si el plan se cambia a uno de
+# pago (PLAN_SKU_ENCENDIDO), al apagar se baja a F1 para que no se cobre.
+name: Azure - encender o apagar
+
+on:
+  workflow_dispatch:
+    inputs:
+      accion:
+        description: "Acción sobre el frontend"
+        type: choice
+        options: [estado, encender, apagar]
+        default: estado
+      backend:
+        description: "Aplicar también a la instancia EC2 del backend (AWS)"
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_GRUPO: billetera-ahorro-rg
+  AZURE_PLAN: billetera-ahorro-plan
+  AZURE_WEBAPP: billetera-ahorro-front
+  PLAN_SKU_ENCENDIDO: F1
+  AWS_REGION: us-east-2
+
+jobs:
+  frontend:
+    name: Frontend (Azure)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: ${{ inputs.accion }}
+        run: |
+          case "${{ inputs.accion }}" in
+            encender)
+              if [ "$PLAN_SKU_ENCENDIDO" != "F1" ]; then
+                az appservice plan update -g "$AZURE_GRUPO" -n "$AZURE_PLAN" --sku "$PLAN_SKU_ENCENDIDO" -o none
+              fi
+              az webapp start -g "$AZURE_GRUPO" -n "$AZURE_WEBAPP" ;;
+            apagar)
+              az webapp stop -g "$AZURE_GRUPO" -n "$AZURE_WEBAPP"
+              if [ "$PLAN_SKU_ENCENDIDO" != "F1" ]; then
+                az appservice plan update -g "$AZURE_GRUPO" -n "$AZURE_PLAN" --sku F1 -o none
+              fi ;;
+          esac
+          ESTADO=$(az webapp show -g "$AZURE_GRUPO" -n "$AZURE_WEBAPP" --query state -o tsv)
+          SKU=$(az appservice plan show -g "$AZURE_GRUPO" -n "$AZURE_PLAN" --query sku.name -o tsv)
+          echo "Frontend https://${AZURE_WEBAPP}.azurewebsites.net: $ESTADO (plan $SKU)" | tee -a "$GITHUB_STEP_SUMMARY"
+
+  backend:
+    name: Backend (AWS)
+    if: inputs.backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: ${{ inputs.accion }}
+        run: |
+          ID=$(aws ec2 describe-instances --filters "Name=tag:Proyecto,Values=billetera-ahorro" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query 'Reservations[0].Instances[0].InstanceId' --output text)
+          case "${{ inputs.accion }}" in
+            encender) aws ec2 start-instances --instance-ids "$ID" >/dev/null && aws ec2 wait instance-running --instance-ids "$ID" ;;
+            apagar)   aws ec2 stop-instances --instance-ids "$ID" >/dev/null && aws ec2 wait instance-stopped --instance-ids "$ID" ;;
+          esac
+          ESTADO=$(aws ec2 describe-instances --instance-ids "$ID" --query 'Reservations[0].Instances[0].State.Name' --output text)
+          echo "Backend $ID: $ESTADO" | tee -a "$GITHUB_STEP_SUMMARY"

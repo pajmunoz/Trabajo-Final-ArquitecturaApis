@@ -129,6 +129,8 @@ describe('planes', () => {
     const get = await request(app).get(`/v1/planes-ahorro/${r.body.id}`).set('Authorization', cliente());
     expect(get.status).toBe(200);
     expect(get.body.id).toBe(r.body.id);
+    // Datos privados: sin caché, para que el navegador no reutilice un saldo viejo (304).
+    expect(get.headers['cache-control']).toBe('no-store');
   });
 
   it('Idempotency-Key: repite la respuesta original y rechaza otro cuerpo con 409', async () => {

@@ -2,7 +2,8 @@
 // - Agrega el access token y lo renueva una vez con el refresh token si expiró (401).
 // - Traduce los errores application/problem+json a ApiError con el `codigo` del contrato.
 
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "http://3.151.57.252").replace(/\/$/, "");
+// Por defecto, el proxy del propio servidor de Next.js (ver next.config.ts).
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? "/api").replace(/\/$/, "");
 
 export interface Problema {
   type?: string;
@@ -97,6 +98,8 @@ export async function solicitud<T>(ruta: string, opciones: Opciones = {}, reinte
     respuesta = await fetch(`${API_URL}${ruta}`, {
       method: metodo,
       headers,
+      // Saldos y estados cambian por eventos asíncronos: siempre se consulta al servidor.
+      cache: "no-store",
       body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
     });
   } catch {

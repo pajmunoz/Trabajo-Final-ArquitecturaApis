@@ -1,0 +1,108 @@
+# CI/CD del frontend: lint y compilación → paquete standalone → Azure App Service (Linux, Node).
+# Autenticación con Azure por OIDC (sin contraseñas): identidad administrada con credencial
+# federada para este repositorio. Secrets requeridos: AZURE_CLIENT_ID, AZURE_TENANT_ID y
+# AZURE_SUBSCRIPTION_ID. El navegador llama a /api/... y Next.js lo reenvía al API Gateway
+# (BACKEND_URL), así el sitio HTTPS no hace llamadas HTTP de contenido mixto.
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths: ["frontend/**", ".github/workflows/frontend-ci-cd.yml"]
+  pull_request:
+    paths: ["frontend/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: frontend-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZURE_GRUPO: billetera-ahorro-rg
+  AZURE_WEBAPP: billetera-ahorro-front
+  BACKEND_URL: http://3.151.57.252
+
+jobs:
+  compilacion:
+    name: Lint y compilación
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - name: Compilar (standalone)
+        run: npm run build
+      - name: Empaquetar
+        run: |
+          cp -r .next/static .next/standalone/.next/
+          if [ -d public ]; then cp -r public .next/standalone/; fi
+          cd .next/standalone && zip -qr ../../frontend.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend
+          path: frontend/frontend.zip
+          retention-days: 7
+
+  despliegue:
+    name: Despliegue en Azure
+    needs: compilacion
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verificar configuración
+        id: verificar
+        env:
+          CLIENTE: ${{ secrets.AZURE_CLIENT_ID }}
+        run: |
+          if [ -n "$CLIENTE" ]; then echo "azure=true" >> "$GITHUB_OUTPUT"; else
+            echo "azure=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Faltan los secrets de Azure: se omite el despliegue."
+          fi
+      - uses: azure/login@v2
+        if: steps.verificar.outputs.azure == 'true'
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Estado de la aplicación
+        id: estado
+        if: steps.verificar.outputs.azure == 'true'
+        run: |
+          ESTADO=$(az webapp show -g "$AZURE_GRUPO" -n "$AZURE_WEBAPP" --query state -o tsv)
+          echo "estado=$ESTADO" >> "$GITHUB_OUTPUT"
+          if [ "$ESTADO" != "Running" ]; then
+            echo "::notice::La aplicación está apagada ($ESTADO): se omite el despliegue. Enciéndela con «Azure - encender o apagar»."
+          fi
+      - uses: actions/download-artifact@v4
+        if: steps.estado.outputs.estado == 'Running'
+        with:
+          name: frontend
+      - uses: azure/webapps-deploy@v3
+        if: steps.estado.outputs.estado == 'Running'
+        with:
+          app-name: ${{ env.AZURE_WEBAPP }}
+          package: frontend.zip
+      - name: Verificación
+        if: steps.estado.outputs.estado == 'Running'
+        run: |
+          URL="https://${AZURE_WEBAPP}.azurewebsites.net"
+          for _ in $(seq 1 20); do
+            CODIGO=$(curl -s -o /dev/null -w "%{http_code}" "$URL/login" || true)
+            [ "$CODIGO" = "200" ] && break
+            sleep 6
+          done
+          echo "GET $URL/login → $CODIGO" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$CODIGO" = "200" ]

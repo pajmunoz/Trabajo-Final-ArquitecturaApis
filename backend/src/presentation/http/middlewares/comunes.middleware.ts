@@ -54,3 +54,13 @@ export function cacheable(segundos: number): RequestHandler {
     next();
   };
 }
+
+/**
+ * Respuestas privadas (datos financieros del cliente): no se guardan en ninguna caché.
+ * Además evita que el navegador revalide con If-None-Match y reciba 304 con un saldo
+ * viejo: el ETag del plan es su versión (para If-Match) y no cambia con los aportes.
+ */
+export const sinCache: RequestHandler = (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  next();
+};
