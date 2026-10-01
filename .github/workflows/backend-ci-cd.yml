@@ -1,0 +1,195 @@
+# CI/CD del backend: pruebas → imagen en ECR → despliegue en EC2 (SSM Run Command, sin SSH).
+# Secrets requeridos en el repositorio: AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY del
+# usuario IAM `billetera-ci` (permisos mínimos: ECR del proyecto, SSM y encender/apagar
+# solo instancias con la etiqueta Proyecto=billetera-ahorro).
+name: Backend CI/CD
+
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", "contracts/**", ".github/workflows/backend-ci-cd.yml"]
+  pull_request:
+    paths: ["backend/**", "contracts/**"]
+  workflow_dispatch:
+    inputs:
+      encender:
+        description: "Encender la instancia si está apagada antes de desplegar"
+        type: boolean
+        default: false
+
+concurrency:
+  group: backend-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-2
+  ECR_REPOSITORIO: billetera-ahorro-backend
+  ETIQUETA_PROYECTO: billetera-ahorro
+  URL_PUBLICA: http://3.151.57.252
+
+jobs:
+  configuracion:
+    name: Configuración
+    runs-on: ubuntu-latest
+    outputs:
+      aws: ${{ steps.verificar.outputs.aws }}
+    steps:
+      - id: verificar
+        env:
+          CLAVE: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        run: |
+          if [ -n "$CLAVE" ]; then echo "aws=true" >> "$GITHUB_OUTPUT"; else
+            echo "aws=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Faltan los secrets AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY: se ejecutan solo las pruebas."
+          fi
+
+  pruebas:
+    name: Pruebas y contrato
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: billetera
+          POSTGRES_PASSWORD: billetera
+          POSTGRES_DB: billetera
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U billetera" --health-interval 3s --health-retries 20
+      rabbitmq:
+        image: rabbitmq:4-management-alpine
+        ports: ["5672:5672", "15672:15672"]
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping" --health-interval 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: Tipos (TypeScript)
+        run: npm run check
+      - name: Contrato OpenAPI válido
+        run: npx --yes @redocly/cli@latest lint ../contracts/openapi.yaml
+      - name: Pruebas unitarias e integración con cobertura (umbral 80 %)
+        run: npm run coverage
+      - name: Resumen de cobertura
+        if: always()
+        run: |
+          node -e "const t=require('./coverage/coverage-summary.json').total;console.log('| Métrica | % |\n|---|---|\n'+['lines','statements','functions','branches'].map(k=>'| '+k+' | '+t[k].pct+' |').join('\n'))" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reporte-cobertura
+          path: backend/coverage/
+
+  imagen:
+    name: Imagen en ECR
+    needs: [configuracion, pruebas]
+    if: github.event_name != 'pull_request' && needs.configuracion.outputs.aws == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      imagen: ${{ steps.datos.outputs.imagen }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - id: datos
+        run: echo "imagen=${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORIO }}:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: backend
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.datos.outputs.imagen }}
+            ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPOSITORIO }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  desplegar:
+    name: Despliegue en EC2
+    needs: imagen
+    runs-on: ubuntu-latest
+    environment:
+      name: produccion
+      url: ${{ env.URL_PUBLICA }}
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Ubicar la instancia
+        id: instancia
+        run: |
+          read -r ID ESTADO < <(aws ec2 describe-instances \
+            --filters "Name=tag:Proyecto,Values=${ETIQUETA_PROYECTO}" "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+            --query 'Reservations[0].Instances[0].[InstanceId,State.Name]' --output text)
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
+          echo "estado=$ESTADO" >> "$GITHUB_OUTPUT"
+          echo "Instancia $ID en estado $ESTADO"
+
+      - name: Encender la instancia (solo si se pidió)
+        if: steps.instancia.outputs.estado == 'stopped' && inputs.encender
+        run: |
+          aws ec2 start-instances --instance-ids ${{ steps.instancia.outputs.id }} >/dev/null
+          aws ec2 wait instance-running --instance-ids ${{ steps.instancia.outputs.id }}
+          for _ in $(seq 1 40); do
+            [ "$(aws ssm describe-instance-information --filters Key=InstanceIds,Values=${{ steps.instancia.outputs.id }} --query 'InstanceInformationList[0].PingStatus' --output text)" = "Online" ] && break
+            sleep 10
+          done
+
+      - name: Instancia apagada
+        id: apagada
+        if: steps.instancia.outputs.estado != 'running' && !inputs.encender
+        run: |
+          echo "apagada=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::La instancia está apagada (para no generar costos). La imagen quedó en ECR; ejecute el workflow manualmente con 'encender' para desplegar."
+
+      - name: Desplegar con SSM Run Command
+        if: steps.apagada.outputs.apagada != 'true'
+        env:
+          IMAGEN: ${{ needs.imagen.outputs.imagen }}
+          INSTANCIA: ${{ steps.instancia.outputs.id }}
+        run: |
+          # Los mismos pasos que deploy/arrancar.sh: login en ECR, extraer los archivos de despliegue de la imagen y desplegar.
+          jq -n --arg imagen "$IMAGEN" --arg region "$AWS_REGION" '{commands: [
+            "export PATH=$PATH:/snap/bin",
+            "IMAGEN=\($imagen)",
+            "aws ecr get-login-password --region \($region) | docker login --username AWS --password-stdin ${IMAGEN%%/*} >/dev/null",
+            "docker pull -q $IMAGEN",
+            "mkdir -p /opt/billetera",
+            "docker run --rm --entrypoint sh $IMAGEN -c \"tar -C /app/deploy -cf - .\" | tar -C /opt/billetera -xf -",
+            "bash /opt/billetera/desplegar.sh $IMAGEN"
+          ]}' > parametros.json
+          COMANDO=$(aws ssm send-command --instance-ids "$INSTANCIA" --document-name AWS-RunShellScript \
+            --comment "Despliegue ${GITHUB_SHA::7}" --timeout-seconds 900 \
+            --parameters file://parametros.json --query Command.CommandId --output text)
+          echo "Comando SSM: $COMANDO"
+          for _ in $(seq 1 120); do
+            ESTADO=$(aws ssm get-command-invocation --command-id "$COMANDO" --instance-id "$INSTANCIA" --query Status --output text 2>/dev/null || echo Pending)
+            case "$ESTADO" in Pending|InProgress|Delayed) sleep 5 ;; *) break ;; esac
+          done
+          aws ssm get-command-invocation --command-id "$COMANDO" --instance-id "$INSTANCIA" \
+            --query StandardOutputContent --output text | grep -v '^curl:' || true
+          [ "$ESTADO" = "Success" ] || { echo "::error::El despliegue terminó en estado $ESTADO"; exit 1; }
+
+      - name: Prueba de humo pública
+        if: steps.apagada.outputs.apagada != 'true'
+        run: |
+          curl -fsS "$URL_PUBLICA/v1/tarifas" >/dev/null
+          curl -fsS "$URL_PUBLICA/v1/simulaciones?montoMetaCentavos=120000&fechaObjetivo=$(date -d '+12 months' +%F)&bloqueado=true"
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$URL_PUBLICA/v1/planes-ahorro")" = "401"

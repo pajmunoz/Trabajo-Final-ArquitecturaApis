@@ -15,6 +15,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY db ./db
+# Archivos de despliegue: la instancia los extrae de la imagen (deploy/arrancar.sh).
+COPY deploy ./deploy
+COPY kong/kong.template.yml ./deploy/kong.template.yml
 USER node
 EXPOSE 3000 3001 4000
 CMD ["node", "dist/apps/api.js"]

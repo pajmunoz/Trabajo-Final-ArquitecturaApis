@@ -82,3 +82,34 @@ npm run coverage                        # unitarias + integración, con reporte 
 ```
 
 Las pruebas unitarias usan repositorios en memoria (`test/fakes/`) y el `CoreSimuladoAdapter`; las de integración corren contra PostgreSQL (base `billetera_test`) y RabbitMQ (vhost `pruebas`). Cobertura actual: **97,9 % de líneas** (umbral configurado: 80 %). Se excluyen los puntos de entrada (`src/apps`), verificados con docker compose, y el Core simulado.
+
+## Despliegue en AWS (us-east-2)
+
+La cuenta del proyecto solo permite la región **us-east-2 (Ohio)** y tipos de instancia de la capa gratuita.
+
+| Recurso | Nombre / valor |
+|---|---|
+| EC2 `m7i-flex.large` (2 vCPU, 8 GB), Ubuntu 24.04 + Docker | `billetera-ahorro` |
+| Elastic IP | **3.151.57.252** → `http://3.151.57.252` y `https://3.151.57.252` (TLS 1.3, certificado autofirmado de Kong) |
+| Grupo de seguridad | `billetera-ahorro-sg`: solo 80 y 443. Sin SSH: la administración es con SSM Session Manager |
+| Rol de la instancia | `billetera-ahorro-ec2`: SSM, lectura de ECR y de `/billetera-ahorro/*` |
+| Secretos (SSM Parameter Store, cifrados) | `/billetera-ahorro/{MONGO_URI, JWT_PRIVATE_KEY, JWT_PUBLIC_KEY, POSTGRES_PASSWORD, RABBITMQ_PASSWORD}` |
+| Repositorio de imágenes | ECR `billetera-ahorro-backend` (conserva las 10 últimas) |
+| Usuario del CI/CD | IAM `billetera-ci`: solo ECR del proyecto, SSM Run Command y encender/apagar instancias con `Proyecto=billetera-ahorro` |
+
+Todos los recursos tienen la etiqueta `Proyecto=billetera-ahorro`.
+
+### Cómo se despliega
+
+1. GitHub Actions (`.github/workflows/backend-ci-cd.yml`) corre tipos, lint del contrato OpenAPI y pruebas con cobertura (con PostgreSQL y RabbitMQ como servicios).
+2. Construye la imagen `linux/amd64` y la sube a ECR con el SHA del commit.
+3. Por **SSM Run Command** (sin SSH ni claves en el servidor), la instancia descarga la imagen, extrae `deploy/` de la propia imagen y ejecuta `deploy/desplegar.sh`: lee los secretos de SSM, genera `kong.yml` con la clave pública y levanta `deploy/docker-compose.prod.yml`.
+4. Prueba de humo contra la URL pública.
+
+Si la instancia está apagada, la imagen queda en ECR y el despliegue se omite; para desplegar, ejecute el workflow manualmente con la opción **encender**. El workflow **AWS - encender o apagar** (`aws-instancia.yml`) enciende, apaga o consulta la instancia.
+
+Secrets requeridos en GitHub (Settings → Secrets and variables → Actions): `AWS_ACCESS_KEY_ID` y `AWS_SECRET_ACCESS_KEY` de `billetera-ci`. Sin ellos, el pipeline solo ejecuta las pruebas.
+
+### Costos
+
+Encendida: la instancia consume créditos de la capa gratuita. Apagada: solo el disco (30 GB gp3) y la IP pública reservada, unos centavos por día.

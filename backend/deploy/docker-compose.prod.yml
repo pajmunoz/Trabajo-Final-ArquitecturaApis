@@ -1,0 +1,113 @@
+# Producción (EC2). Lo usa deploy/desplegar.sh; no se ejecuta a mano.
+# Diferencias con el docker-compose de desarrollo:
+#  - la imagen viene de ECR (no se construye en el servidor),
+#  - solo Kong expone puertos (80 y 443); PostgreSQL y RabbitMQ quedan en la red interna,
+#  - las contraseñas y la cadena de Atlas salen de SSM Parameter Store (archivo .env generado).
+
+x-logs: &logs
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+
+x-backend: &backend
+  image: ${IMAGEN}
+  restart: unless-stopped
+  <<: *logs
+  volumes:
+    - ./keys:/app/keys:ro
+  environment: &entorno
+    NODE_ENV: production
+    LOG_LEVEL: info
+    HOST: 0.0.0.0
+    DATABASE_URL: postgres://billetera:${POSTGRES_PASSWORD}@postgres:5432/billetera
+    RABBITMQ_URL: amqp://billetera:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    JWT_PRIVATE_KEY_PATH: keys/jwt-private.pem
+    JWT_PUBLIC_KEY_PATH: keys/jwt-public.pem
+    CORE_MODO: http
+    CORE_BASE_URL: http://core-simulado:4000
+    CORE_TIMEOUT_MS: "2000"
+    BATCH_HORA_CORTE: "11:00" # 06:00 en Ecuador (UTC-5)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    <<: *logs
+    environment:
+      POSTGRES_USER: billetera
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: billetera
+    volumes: [pg-datos:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billetera"]
+      interval: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    restart: unless-stopped
+    <<: *logs
+    environment:
+      RABBITMQ_DEFAULT_USER: billetera
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes: [rabbit-datos:/var/lib/rabbitmq]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      retries: 20
+
+  core-simulado:
+    <<: *backend
+    command: ["node", "dist/apps/core-simulado.js"]
+    environment:
+      <<: *entorno
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: core_bancario_db
+
+  auth:
+    <<: *backend
+    command: ["node", "dist/apps/auth.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *backend
+    command: ["node", "dist/apps/api.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+
+  batch:
+    <<: *backend
+    command: ["node", "dist/apps/batch.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      api: { condition: service_started }
+
+  core-adapter:
+    <<: *backend
+    command: ["node", "dist/apps/core-adapter.js"]
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+
+  kong:
+    image: kong:3.9
+    restart: unless-stopped
+    <<: *logs
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: "0.0.0.0:8000, 0.0.0.0:8443 ssl http2"
+      KONG_SSL_PROTOCOLS: TLSv1.3
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_NGINX_WORKER_PROCESSES: "2"
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml:ro
+    ports: ["80:8000", "443:8443"]
+    depends_on: [api, auth]
+
+volumes:
+  pg-datos:
+  rabbit-datos:
