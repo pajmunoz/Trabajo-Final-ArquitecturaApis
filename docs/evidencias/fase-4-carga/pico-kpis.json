@@ -1,0 +1,38 @@
+{
+  "escenario": "pico",
+  "duracion_s": 182,
+  "total": {
+    "peticiones": 63024,
+    "rps_promedio": 346.3,
+    "promedio_ms": 326.3,
+    "mediana_ms": 187.3,
+    "p90_ms": 739.4,
+    "p95_ms": 973.1,
+    "p99_ms": 1428.3,
+    "max_ms": 1940.0,
+    "tasa_error_pct": 51.088,
+    "codigos": {
+      "200": 28416,
+      "201": 10,
+      "202": 2400,
+      "429": 32198
+    }
+  },
+  "recuperacion": {
+    "peticiones": 1034,
+    "rps_promedio": 17.2,
+    "promedio_ms": 172.1,
+    "mediana_ms": 147.9,
+    "p90_ms": 273.2,
+    "p95_ms": 306.5,
+    "p99_ms": 453.0,
+    "max_ms": 731.3,
+    "tasa_error_pct": 0.0,
+    "codigos": {
+      "200": 957,
+      "202": 77
+    }
+  },
+  "rps_maximo_ventana": 660.6,
+  "rps_meseta": 601.0
+}

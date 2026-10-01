@@ -1,3 +1,11 @@
 .structurizr/
 *.bak
 .DS_Store
+# Resultados crudos de k6 (cientos de MB); se versionan los resúmenes, series y gráficas.
+docs/evidencias/fase-4-carga/sostenida.csv
+docs/evidencias/fase-4-carga/pico.csv
+docs/evidencias/fase-4-carga/ruptura.csv
+# Archivos intermedios de LaTeX
+docs/latex/build/
+# Capítulos generados desde docs/informes/*.md en cada compilación
+docs/latex/generados/

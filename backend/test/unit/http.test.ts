@@ -41,6 +41,7 @@ beforeEach(() => {
     reloj: e.reloj,
     logger: loggerSilencioso,
     estadoCore: () => 'CERRADO',
+    rutaContrato: new URL('../../../contracts/openapi.yaml', import.meta.url).pathname,
   });
 });
 
@@ -75,6 +76,18 @@ describe('endpoints públicos', () => {
     expect((await request(app).get('/v1/tarifas').set('X-Request-Id', id)).headers['x-request-id']).toBe(id);
     expect((await request(app).get('/health')).body).toEqual({ estado: 'OK', circuitoCore: 'CERRADO' });
     expect((await request(app).get('/v1/no-existe').set('Authorization', cliente())).body.codigo).toBe('NO_ENCONTRADO');
+  });
+});
+
+describe('documentación', () => {
+  it('publica el contrato OpenAPI y Swagger UI sin autenticación', async () => {
+    const yaml = await request(app).get('/docs/openapi.yaml');
+    expect(yaml.status).toBe(200);
+    expect(yaml.headers['content-type']).toContain('application/yaml');
+    expect(yaml.text).toContain('openapi: 3.1.0');
+    const ui = await request(app).get('/docs/').redirects(1);
+    expect(ui.status).toBe(200);
+    expect(ui.text).toContain('swagger-ui');
   });
 });
 

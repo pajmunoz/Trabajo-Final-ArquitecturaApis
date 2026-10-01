@@ -1,0 +1,46 @@
+Ejecución del pipeline Backend CI/CD — run 36812583029 (commit 547fcb3)
+https://github.com/pajmunoz/Trabajo-Final-ArquitecturaApis/actions/runs/36812583029
+
+JOB Pruebas y contrato: success  (2026-10-01T03:53:39Z → 2026-10-01T03:54:12Z)
+    success  Set up job
+    success  Initialize containers
+    success  Run actions/checkout@v4
+    success  Run actions/setup-node@v4
+    success  Run npm ci
+    success  Tipos (TypeScript)
+    success  Contrato OpenAPI válido
+    success  Pruebas unitarias e integración con cobertura (umbral 80 %)
+    success  Resumen de cobertura
+    success  Run actions/upload-artifact@v4
+    success  Post Run actions/setup-node@v4
+    success  Post Run actions/checkout@v4
+    success  Stop containers
+    success  Complete job
+JOB Configuración: success  (2026-10-01T03:53:39Z → 2026-10-01T03:53:42Z)
+    success  Set up job
+    success  Run if [ -n "$CLAVE" ]; then echo "aws=true" >> "$GITHUB_OUTPUT"; else
+    success  Complete job
+JOB Imagen en ECR: success  (2026-10-01T03:54:14Z → 2026-10-01T03:54:56Z)
+    success  Set up job
+    success  Run actions/checkout@v4
+    success  Run aws-actions/configure-aws-credentials@v4
+    success  Run aws-actions/amazon-ecr-login@v2
+    success  Run echo "imagen=<cuenta>.dkr.ecr.us-east-2.amazonaws.com/billetera-ahorro-backend:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+    success  Run docker/setup-buildx-action@v3
+    success  Run docker/build-push-action@v6
+    success  Post Run docker/build-push-action@v6
+    success  Post Run docker/setup-buildx-action@v3
+    success  Post Run aws-actions/amazon-ecr-login@v2
+    success  Post Run aws-actions/configure-aws-credentials@v4
+    success  Post Run actions/checkout@v4
+    success  Complete job
+JOB Despliegue en EC2: success  (2026-10-01T03:54:59Z → 2026-10-01T03:55:05Z)
+    success  Set up job
+    success  Run aws-actions/configure-aws-credentials@v4
+    success  Ubicar la instancia
+    skipped  Encender la instancia (solo si se pidió)
+    success  Instancia apagada
+    skipped  Desplegar con SSM Run Command
+    skipped  Prueba de humo pública
+    success  Post Run aws-actions/configure-aws-credentials@v4
+    success  Complete job

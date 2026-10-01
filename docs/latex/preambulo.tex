@@ -1,0 +1,104 @@
+% =============================================================================
+% Preámbulo del informe final — compilar con LuaLaTeX + Biber (ver compilar.sh)
+% =============================================================================
+\usepackage{fontspec}
+\usepackage[spanish,es-noquoting,es-tabla]{babel}
+\usepackage[a4paper,top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm,headheight=14pt]{geometry}
+\usepackage{microtype}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{array,booktabs,longtable,tabularx,multirow,makecell,calc}
+\usepackage{amssymb}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{etoolbox}
+\usepackage{listings}
+\usepackage[most]{tcolorbox}
+\usepackage{csquotes}
+\usepackage[style=apa,backend=biber]{biblatex}
+\usepackage[hidelinks,pdfusetitle]{hyperref}
+
+\addbibresource{referencias.bib}
+
+% --- Colores institucionales sobrios ------------------------------------------
+\definecolor{azulups}{HTML}{003A70}
+\definecolor{grisclaro}{HTML}{F2F4F7}
+\definecolor{grismedio}{HTML}{6C757D}
+
+% --- Títulos ---------------------------------------------------------------------
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{azulups}}
+  {\large\MakeUppercase{\chaptertitlename}\ \thechapter}
+  {6pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{-10pt}{24pt}
+\titleformat{\section}{\normalfont\Large\bfseries\color{azulups}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{0.8em}{}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{1}
+
+% --- Encabezados -----------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{grismedio}Billetera de Ahorro}
+\fancyhead[R]{\small\color{grismedio}\nouppercase{\rightmark}}
+\renewcommand{\chaptermark}[1]{\markboth{#1}{#1}}
+\renewcommand{\sectionmark}[1]{}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.3pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\small\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+% --- Párrafos y listas -----------------------------------------------------------------
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt}
+\setlist{itemsep=2pt,topsep=4pt}
+\renewcommand{\arraystretch}{1.25}
+
+% --- Figuras y tablas (APA: título arriba, en cursiva) ------------------------------
+\captionsetup{font=small,labelfont={bf,color=azulups},textfont=it,justification=raggedright,singlelinecheck=false}
+\captionsetup[table]{position=top}
+\setlength{\LTpre}{6pt}\setlength{\LTpost}{6pt}
+\AtBeginEnvironment{longtable}{\small}
+
+% --- Compatibilidad con el LaTeX que genera pandoc ----------------------------------
+\newcounter{none} % tablas sin título (pandoc usa \LTcaptype{none})
+\providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{%
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}\fi}
+\makeatother
+\def\fps@figure{H}
+\renewenvironment{quote}{\begin{tcolorbox}[colback=grisclaro,colframe=grisclaro,boxrule=0pt,left=8pt,right=8pt,top=4pt,bottom=4pt,sharp corners,breakable]}{\end{tcolorbox}}
+
+% --- Código y evidencias de terminal ---------------------------------------------------
+\lstset{
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  breakatwhitespace=false,
+  columns=fullflexible,
+  keepspaces=true,
+  frame=single,
+  rulecolor=\color{grismedio!40},
+  backgroundcolor=\color{grisclaro},
+  inputencoding=utf8,
+  extendedchars=true,
+  literate={á}{{\'a}}1 {é}{{\'e}}1 {í}{{\'i}}1 {ó}{{\'o}}1 {ú}{{\'u}}1 {ñ}{{\~n}}1
+           {Á}{{\'A}}1 {É}{{\'E}}1 {Í}{{\'I}}1 {Ó}{{\'O}}1 {Ú}{{\'U}}1 {Ñ}{{\~N}}1
+           {→}{{$\rightarrow$}}1 {✓}{{$\checkmark$}}1 {×}{{$\times$}}1 {↳}{{$\hookrightarrow$}}1 {│}{{|}}1 {├}{{|}}1 {└}{{|}}1 {─}{{-}}1 {—}{{--}}1 {≈}{{$\approx$}}1 {·}{{$\cdot$}}1 {¿}{{?`}}1 {¡}{{!`}}1 {ü}{{\"u}}1 {…}{{...}}1 {•}{{$\bullet$}}1
+}
+
+% --- Recuadro para contenido pendiente ------------------------------------------------
+\newtcolorbox{pendiente}{colback=yellow!8,colframe=orange!70!black,title=Pendiente,fonttitle=\bfseries,breakable}
+
+% --- Datos del documento -------------------------------------------------------------
+\newcommand{\titulo}{Billetera de Ahorro: plataforma de planes de ahorro programado dirigida por APIs}
+\title{\titulo}
+\author{Grupo del Trabajo Final — Patrones de Diseño de APIs}

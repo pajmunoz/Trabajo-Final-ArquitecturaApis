@@ -34,6 +34,11 @@ services:
               content_type: [application/json, application/json; charset=utf-8]
               request_method: [GET]
               response_code: [200]
+      # Documentación pública del contrato (Swagger UI).
+      - name: documentacion
+        paths: [/docs]
+        strip_path: false
+        methods: [GET]
       # Autenticados: el Gateway valida firma RS256 y expiración del JWT.
       - name: privado
         paths: [/v1]

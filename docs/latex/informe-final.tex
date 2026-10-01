@@ -1,0 +1,44 @@
+% =============================================================================
+% Informe final — Billetera de Ahorro (Patrones de Diseño de APIs, MSOF-UPS)
+% Compilar:  bash compilar.sh   (genera los capítulos desde Markdown y produce el PDF)
+% =============================================================================
+\documentclass[12pt,oneside]{report}
+\input{preambulo}
+
+\begin{document}
+
+\input{portada}
+
+\pagenumbering{roman}
+\input{capitulos/resumen}
+\tableofcontents
+\listoffigures
+\listoftables
+\cleardoublepage
+\pagenumbering{arabic}
+
+\input{capitulos/introduccion}
+
+\chapter{Fase 1: justificación de negocio}\label{cap:fase1}
+\input{generados/fase1-negocio}
+\section{Requerimientos del producto}
+\input{generados/fase1-requerimientos}
+
+\chapter{Fase 2: arquitectura y patrones}\label{cap:fase2}
+\input{generados/fase2-arquitectura}
+
+\input{capitulos/fase3-contrato}
+
+\chapter{Fase 4: desarrollo, seguridad y despliegue}\label{cap:fase4}
+\input{generados/fase4-desarrollo}
+
+\input{capitulos/integracion-frontend}
+\input{capitulos/conclusiones}
+
+\printbibliography[heading=bibintoc,title={Referencias}]
+\nocite{*}
+
+\appendix
+\input{capitulos/anexos}
+
+\end{document}

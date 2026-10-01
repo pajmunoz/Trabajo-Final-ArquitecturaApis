@@ -54,9 +54,17 @@ export function crearServidorCore(db: Db, logger: Logger, fallas: Fallas): Expre
     next();
   });
 
+  // Una sola ida a Atlas: cliente + cuentas con $lookup (antes eran dos consultas seguidas).
   const cuentasDelCliente = async (identificacion: string) => {
-    const cliente = await clientes.findOne({ identificacion });
-    return cliente ? cuentas.find({ cliente_id: cliente._id, estado: { $ne: 'CERRADA' } }).toArray() : null;
+    const [cliente] = await clientes
+      .aggregate<{ cuentas: Document[] }>([
+        { $match: { identificacion } },
+        { $limit: 1 },
+        { $lookup: { from: 'cuentas', localField: '_id', foreignField: 'cliente_id', as: 'cuentas' } },
+        { $project: { cuentas: 1 } },
+      ])
+      .toArray();
+    return cliente ? cliente.cuentas.filter((c) => c.estado !== 'CERRADA') : null;
   };
 
   app.get('/clientes/:identificacion/cuentas', async (req: Request<{ identificacion: string }>, res: Response) => {

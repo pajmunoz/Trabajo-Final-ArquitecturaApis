@@ -51,7 +51,9 @@ services:
 
   api:
     <<: *backend
-    build: .
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
     command: ["node", "dist/apps/api.js"]
     depends_on:
       postgres: { condition: service_healthy }
@@ -79,10 +81,14 @@ services:
       KONG_DATABASE: "off"
       KONG_DECLARATIVE_CONFIG: /kong/kong.yml
       KONG_PROXY_LISTEN: "0.0.0.0:8000, 0.0.0.0:8443 ssl http2"
-      KONG_SSL_PROTOCOLS: TLSv1.3
+      # Perfil "modern" de Mozilla: solo TLS 1.3 (KONG_SSL_PROTOCOLS solo aplica con el perfil "custom").
+      KONG_SSL_CIPHER_SUITE: modern
       KONG_PROXY_ACCESS_LOG: /dev/stdout
       KONG_PROXY_ERROR_LOG: /dev/stderr
       KONG_NGINX_WORKER_PROCESSES: "2"
+      # Vuelve a resolver los nombres de los contenedores cada 5 s: tras un redespliegue
+      # cambian de IP y Kong no debe seguir usando la anterior (502).
+      KONG_DNS_VALID_TTL: "5"
     volumes:
       - ./kong/kong.yml:/kong/kong.yml:ro
     ports: ["8000:8000", "9443:8443"]

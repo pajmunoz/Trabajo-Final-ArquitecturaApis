@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { generadorUuid, relojSistema } from '../application/ports/servicios.js';
 import { ClientesService } from '../application/services/clientes.service.js';
 import { ConsultasService } from '../application/services/consultas.service.js';
@@ -14,6 +16,14 @@ import { JwtTokenService } from '../infrastructure/security/jwt-token.service.js
 import { crearApiApp } from '../presentation/http/app.js';
 import { crearLogger } from '../shared/logger.js';
 import { cierreOrdenado, fallaAlIniciar } from './arranque.js';
+
+/** contracts/openapi.yaml: en la imagen está en /app/contracts; en desarrollo, un nivel arriba de backend/. */
+function ubicarContrato(): string | undefined {
+  return [process.env.OPENAPI_PATH, 'contracts/openapi.yaml', '../contracts/openapi.yaml']
+    .filter((r): r is string => Boolean(r))
+    .map((r) => resolve(r))
+    .find((r) => existsSync(r));
+}
 
 /** Proceso Ahorro Core API: endpoints REST + relay de la outbox. */
 async function iniciar() {
@@ -45,6 +55,7 @@ async function iniciar() {
     reloj: relojSistema,
     logger,
     estadoCore: () => circuito.estado,
+    rutaContrato: ubicarContrato(),
   });
 
   const broker = await RabbitMq.conectar(config.RABBITMQ_URL, logger);

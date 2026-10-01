@@ -1,0 +1,50 @@
+\chapter{Introducción}\label{cap:introduccion}
+
+\section{Contexto y problema}
+
+El ahorro de las personas suele ser un residuo: se ahorra lo que sobra a fin de mes. Los productos tradicionales piden montos mínimos, plazos rígidos y trámites en agencia, y el cliente no sabe cuánto tendrá al final. Del lado del banco, el depósito a la vista es barato pero volátil, y la apertura de productos de ahorro en canales digitales se abandona sin que el banco sepa por qué.
+
+La \emph{Billetera de Ahorro} responde a ambos problemas: automatiza el aporte, muestra desde el primer momento cuánto dinero tendrá el cliente y no exige monto mínimo. A cambio, el banco obtiene depósitos recurrentes y de mayor permanencia. El producto se construyó con un enfoque API-First: la capacidad de ahorro se expone como un contrato que hoy consume la banca web y mañana podrían consumir socios externos.
+
+\section{Objetivos}
+
+\textbf{Objetivo general.} Diseñar, implementar y desplegar una plataforma de planes de ahorro programado dirigida por APIs, aplicando los patrones de diseño y arquitectura vistos en la asignatura.
+
+\textbf{Objetivos específicos.}
+\begin{itemize}
+  \item Justificar el caso de negocio, la cadena de valor y el modelo de monetización de la API (Fase~1).
+  \item Seleccionar y justificar el estilo arquitectónico y los patrones de diseño (Fase~2).
+  \item Especificar el modelo de datos y el contrato de la API con OpenAPI (Fase~3).
+  \item Implementar los servicios con seguridad, pruebas, pruebas de carga y despliegue automatizado (Fase~4).
+\end{itemize}
+
+\section{Alcance}
+
+El alcance aprobado por el equipo incluye la creación de varios planes con cuota fija mensual, la simulación pública, el débito automático con cinco intentos, los aportes y retiros, el bloqueo y desbloqueo del plan, la cancelación con devolución de fondos y la consulta del historial. El Core bancario y el sistema de notificaciones son sistemas existentes del banco: para el proyecto, el Core se simula sobre MongoDB Atlas y queda fuera del alcance del producto.
+
+\section{Organización del repositorio y del documento}
+
+Todo el trabajo está versionado en un repositorio de GitHub. La Tabla~\ref{tab:repositorio} resume su estructura.
+
+\begin{table}[H]
+\centering
+\caption{Organización del repositorio}\label{tab:repositorio}
+\begin{tabularx}{\linewidth}{@{}>{\ttfamily}l X@{}}
+\toprule
+\normalfont\textbf{Carpeta} & \textbf{Contenido} \\
+\midrule
+contracts/ & Contrato OpenAPI 3.1 (fuente de verdad de la API) \\
+backend/ & Implementación en Node.js, pruebas, scripts de carga y despliegue \\
+frontend/ & Aplicación web en Next.js \\
+bdd/ & Modelo del Core bancario simulado (MongoDB) \\
+docs/informes/ & Informes de cada fase en Markdown \\
+docs/diagramas/ & Modelo C4 (Structurizr) y vista ArchiMate \\
+docs/evidencias/ & Evidencias de pruebas, seguridad, despliegue y carga \\
+docs/latex/ & Fuente de este informe \\
+entregables/ & Documentos finales para la entrega \\
+.github/workflows/ & Pipeline de CI/CD \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Los capítulos~\ref{cap:fase1} a~\ref{cap:fase4} corresponden a las cuatro fases del proyecto. El capítulo~\ref{cap:frontend} describe la integración con el frontend y el capítulo~\ref{cap:conclusiones} presenta las conclusiones. Los anexos reúnen el detalle de los patrones de diseño y las evidencias.

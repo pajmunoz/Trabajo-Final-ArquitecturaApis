@@ -1,0 +1,20 @@
+\chapter{Conclusiones y trabajo futuro}\label{cap:conclusiones}
+
+\section{Conclusiones}
+
+\begin{enumerate}
+  \item \textbf{El enfoque API-First ordenó el trabajo del equipo.} Con el contrato OpenAPI como fuente de verdad, el frontend y el backend avanzaron en paralelo, y los cambios de alcance se discutieron sobre el contrato antes de escribir código.
+  \item \textbf{Cada patrón responde a un requisito concreto.} El estilo híbrido REST y orientado a eventos resolvió el pico del corte diario y el desacoplamiento del Core; Adapter y Decorator aislaron el Core y su resiliencia; Strategy y State concentraron las reglas del negocio en código fácil de probar; el Transactional Outbox evitó perder eventos sin renunciar a la consistencia ACID del saldo.
+  \item \textbf{La calidad se pudo medir.} Las 97 pruebas cubren el 97,9~\% de las líneas, y las pruebas de carga confirmaron los objetivos de la rúbrica: p95 de 336~ms y 0,001~\% de errores con 200 usuarios simultáneos, recuperación automática después de un pico de 500 usuarios y un punto de ruptura identificado en unas 220 peticiones por segundo.
+  \item \textbf{Medir sacó a la luz problemas reales.} Las pruebas en el entorno desplegado revelaron una consulta al Core con dos viajes a la base, una caché de DNS del Gateway que provocaba errores 502 tras un redespliegue y una configuración de TLS que aceptaba TLS~1.2. Los tres se corrigieron y se verificaron.
+  \item \textbf{La automatización reduce el riesgo de cada cambio.} El pipeline ejecuta pruebas, valida el contrato, publica la imagen y despliega sin acceso SSH, con los secretos fuera del repositorio.
+\end{enumerate}
+
+\section{Trabajo futuro}
+
+\begin{itemize}
+  \item Mantener una tabla de saldos actualizada en la misma transacción que el ledger, para que las lecturas no recorran todos los movimientos, y migrar PostgreSQL a un servicio administrado.
+  \item Escalar horizontalmente la API detrás del Gateway y separar la base de lecturas cuando el volumen lo justifique (CQRS).
+  \item Incorporar un certificado TLS emitido por una autoridad reconocida y un dominio propio.
+  \item Abrir el canal de socios (ahorro embebido) con una versión \texttt{v2} del contrato y credenciales propias por socio.
+\end{itemize}

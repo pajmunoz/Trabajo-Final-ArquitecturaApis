@@ -1,0 +1,13 @@
+\chapter{Integración con el frontend y pruebas de extremo a extremo}\label{cap:frontend}
+
+El frontend (Next.js, React y Zustand) ya sigue la forma del contrato: montos en centavos, los mismos estados del plan y los mismos códigos de error. Hasta ahora funciona con datos de prueba en el navegador. Este capítulo documentará su conexión con la API desplegada.
+
+\begin{pendiente}
+Se completará al terminar la integración:
+\begin{itemize}
+  \item Reemplazo del almacenamiento local por llamadas HTTP a la API (login con JWT y renovación con refresh token, planes, aportes, retiros, bloqueo, desbloqueo y cancelación).
+  \item Manejo de las operaciones asíncronas en la interfaz (estado \texttt{PENDIENTE} hasta la confirmación del Core).
+  \item Manejo de los errores \texttt{application/problem+json} (mensajes al usuario según el \texttt{codigo}).
+  \item Pruebas de extremo a extremo en el navegador contra el entorno de AWS, con capturas como evidencia.
+\end{itemize}
+\end{pendiente}

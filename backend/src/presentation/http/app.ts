@@ -1,5 +1,6 @@
 import express, { Router, type Express } from 'express';
 import { pinoHttp } from 'pino-http';
+import swaggerUi from 'swagger-ui-express';
 import type { IdempotenciaRepository } from '../../application/ports/repositorios.js';
 import type { Reloj, TokenService } from '../../application/ports/servicios.js';
 import type { AuthService } from '../../application/services/auth.service.js';
@@ -35,6 +36,8 @@ export interface DependenciasApi {
   logger: Logger;
   /** Estado del Circuit Breaker para /health. */
   estadoCore?: () => string;
+  /** Ruta de contracts/openapi.yaml para publicar la documentación en /docs. */
+  rutaContrato?: string;
 }
 
 /** Middlewares comunes: request-id, log de cada petición (método, ruta, status, tiempo) y JSON. */
@@ -60,6 +63,23 @@ export function crearApiApp(d: DependenciasApi): Express {
   app.get('/health', (_req, res) => {
     res.json({ estado: 'OK', circuitoCore: d.estadoCore?.() ?? 'N/A' });
   });
+
+  // Documentación pública: el contrato OpenAPI (fuente de verdad) y Swagger UI sobre él.
+  if (d.rutaContrato) {
+    const contrato = d.rutaContrato;
+    app.get('/docs/openapi.yaml', (_req, res) => {
+      res.type('application/yaml').sendFile(contrato);
+    });
+    app.use(
+      '/docs',
+      swaggerUi.serve,
+      swaggerUi.setup(undefined, {
+        customSiteTitle: 'Billetera de Ahorro — API v1',
+        // validatorUrl: null evita enviar la URL del contrato a validator.swagger.io.
+        swaggerOptions: { url: '/docs/openapi.yaml', persistAuthorization: true, validatorUrl: null },
+      }),
+    );
+  }
 
   const planes = new PlanesController(d.planes, d.reloj);
   const dinero = new MovimientosDineroController(d.movimientosDinero);

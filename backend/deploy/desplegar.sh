@@ -46,6 +46,7 @@ EOF
 umask 022
 
 echo "==> Generando la configuración de Kong con la clave pública"
+anterior=$(sha256sum kong/kong.yml 2>/dev/null | cut -d' ' -f1 || true)
 python3 - <<'PY'
 plantilla = open('kong.template.yml', encoding='utf-8').read()
 pem = '\n'.join('          ' + linea for linea in open('keys/jwt-public.pem', encoding='utf-8').read().strip().splitlines())
@@ -54,6 +55,11 @@ PY
 
 echo "==> Levantando servicios con $IMAGEN"
 docker compose -f docker-compose.prod.yml --env-file .env up -d --remove-orphans
+# Kong lee kong.yml solo al arrancar: si cambiaron las rutas o la clave, se reinicia.
+if [ -n "$anterior" ] && [ "$anterior" != "$(sha256sum kong/kong.yml | cut -d' ' -f1)" ]; then
+  echo "==> La configuración de Kong cambió: reiniciando Kong"
+  docker compose -f docker-compose.prod.yml --env-file .env restart kong
+fi
 
 echo "==> Verificando la API a través de Kong"
 for intento in $(seq 1 30); do

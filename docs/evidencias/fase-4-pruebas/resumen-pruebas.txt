@@ -1,0 +1,149 @@
+Resultado de las pruebas (vitest run --coverage)
+
+Test Files  6 passed (6)
+Tests  97 passed (97)
+Start at  11:16:42
+Duration  3.39s (tests 69%, import 15%, transform 14%, worker 3%)
+
+Pruebas ejecutadas:
+✓ |unit| test/unit/dominio.test.ts > fechas > suma meses conservando el día y ajusta al último día del mes
+✓ |unit| test/unit/dominio.test.ts > fechas > cuenta meses completos
+✓ |unit| test/unit/dominio.test.ts > fechas > calcula la próxima fecha con un día dado, siempre posterior
+✓ |unit| test/unit/dominio.test.ts > tarifas > elige el tramo por plazo y usa el último si no hay tope
+✓ |unit| test/unit/dominio.test.ts > tarifas > calcula la TEA con capitalización mensual
+✓ |unit| test/unit/dominio.test.ts > simulación (mismo ejemplo que el contrato) > meta de USD 1.200 a 12 meses bloqueado: cuota 97,46
+✓ |unit| test/unit/dominio.test.ts > simulación (mismo ejemplo que el contrato) > rechaza montos y fechas fuera de rango
+✓ |unit| test/unit/dominio.test.ts > simulación (mismo ejemplo que el contrato) > con tasa 0 reparte la meta en partes iguales
+✓ |unit| test/unit/dominio.test.ts > Strategy: cálculo de interés > sin bloqueo usa la tasa base; con bloqueo suma el bono del tramo
+✓ |unit| test/unit/dominio.test.ts > Strategy: cálculo de interés > respeta la tasa base congelada del plan
+✓ |unit| test/unit/dominio.test.ts > Strategy: cálculo de interés > el interés mensual se redondea al centavo
+✓ |unit| test/unit/dominio.test.ts > Strategy: salida del bloqueo > solo un plan bloqueado pierde los intereses devengados
+✓ |unit| test/unit/dominio.test.ts > State: ciclo de vida del plan > ACTIVO permite operar y valida el sub-estado de bloqueo
+✓ |unit| test/unit/dominio.test.ts > State: ciclo de vida del plan > un plan bloqueado no admite retiros y el monto no puede superar el disponible
+✓ |unit| test/unit/dominio.test.ts > State: ciclo de vida del plan > se completa cuando el saldo alcanza la meta
+✓ |unit| test/unit/dominio.test.ts > State: ciclo de vida del plan > COMPLETADO es final: todo lanza ESTADO_INVALIDO
+✓ |unit| test/unit/dominio.test.ts > State: ciclo de vida del plan > CANCELADO es final: todo lanza ESTADO_INVALIDO
+✓ |unit| test/unit/dominio.test.ts > State: ciclo de vida del plan > progreso y saldo disponible
+✓ |unit| test/unit/dominio.test.ts > State: cobro de una cuota (5 intentos a 24 h) > PROGRAMADA → PENDIENTE → EJECUTADA
+✓ |unit| test/unit/dominio.test.ts > State: cobro de una cuota (5 intentos a 24 h) > un rechazo reprograma a las 24 h y el quinto cancela la cuota
+✓ |unit| test/unit/dominio.test.ts > State: cobro de una cuota (5 intentos a 24 h) > un fallo técnico reprograma sin consumir intentos
+✓ |unit| test/unit/dominio.test.ts > State: cobro de una cuota (5 intentos a 24 h) > transiciones inválidas
+✓ |unit| test/unit/dominio.test.ts > operaciones > clasifica débitos y arma la etiqueta de la cuenta
+✓ |unit| test/unit/servicios.test.ts > PlanesService > crea el plan con cuota calculada, calendario y evento PlanCreado en la outbox
+✓ |unit| test/unit/servicios.test.ts > PlanesService > rechaza una cuenta que no es del cliente y traduce la caída del Core a 503
+✓ |unit| test/unit/servicios.test.ts > PlanesService > lista con resumen; un cliente no puede filtrar por clienteId y solo ve lo suyo
+✓ |unit| test/unit/servicios.test.ts > PlanesService > ABAC: un plan ajeno responde NO_ENCONTRADO
+✓ |unit| test/unit/servicios.test.ts > PlanesService > modifica datos y reprograma las cuotas al cambiar el día; valida la versión
+✓ |unit| test/unit/servicios.test.ts > PlanesService > bloquea con bono; desbloquear pierde los intereses devengados (PENALIDAD en el ledger)
+✓ |unit| test/unit/servicios.test.ts > PlanesService > cancela: cancela cuotas, solicita la devolución y publica PlanCancelado
+✓ |unit| test/unit/servicios.test.ts > PlanesService > cancelar un plan sin saldo no solicita devolución
+✓ |unit| test/unit/servicios.test.ts > MovimientosDineroService + resultados del Core > aporte: queda PENDIENTE, el Core debita y el resultado se asienta en el ledger
+✓ |unit| test/unit/servicios.test.ts > MovimientosDineroService + resultados del Core > aporte rechazado por fondos insuficientes queda FALLIDO y no toca el saldo
+✓ |unit| test/unit/servicios.test.ts > MovimientosDineroService + resultados del Core > retiro: reserva el monto, valida bloqueo y saldo, y se asienta al confirmarse
+✓ |unit| test/unit/servicios.test.ts > MovimientosDineroService + resultados del Core > al alcanzar la meta el plan se completa y se liquidan los fondos
+✓ |unit| test/unit/servicios.test.ts > MovimientosDineroService + resultados del Core > un débito confirmado después de cancelar se devuelve a la cuenta
+✓ |unit| test/unit/servicios.test.ts > MovimientosDineroService + resultados del Core > descarta eventos duplicados (consumidor idempotente) y resultados de operaciones inexistentes
+✓ |unit| test/unit/servicios.test.ts > Batch: corte diario y reintentos de negocio > cobra la cuota, devenga el interés del mes y cuenta la corrida
+✓ |unit| test/unit/servicios.test.ts > Batch: corte diario y reintentos de negocio > cinco rechazos cancelan la cuota y extienden el plazo un mes (prórroga)
+✓ |unit| test/unit/servicios.test.ts > Batch: corte diario y reintentos de negocio > un fallo técnico del Core no consume intentos
+✓ |unit| test/unit/servicios.test.ts > Batch: corte diario y reintentos de negocio > no cobra cuotas de planes cancelados y registra corridas fallidas
+✓ |unit| test/unit/servicios.test.ts > ConsultasService > pagina movimientos por cursor sin repetir ni saltar asientos
+✓ |unit| test/unit/servicios.test.ts > ClientesService > devuelve perfil y cuentas; un cliente sin Core no tiene cuentas
+✓ |unit| test/unit/servicios.test.ts > EjecutorCoreService > traduce crédito exitoso y fallido
+✓ |unit| test/unit/core.test.ts > RetryCoreDecorator (backoff exponencial con jitter) > espera base·2^n + jitter
+✓ |unit| test/unit/core.test.ts > RetryCoreDecorator (backoff exponencial con jitter) > reintenta fallos técnicos hasta tener éxito
+✓ |unit| test/unit/core.test.ts > RetryCoreDecorator (backoff exponencial con jitter) > se rinde al agotar los intentos
+✓ |unit| test/unit/core.test.ts > RetryCoreDecorator (backoff exponencial con jitter) > no reintenta rechazos de negocio ni el circuito abierto
+✓ |unit| test/unit/core.test.ts > RetryCoreDecorator (backoff exponencial con jitter) > usa la espera real por defecto
+✓ |unit| test/unit/core.test.ts > TimeoutCoreDecorator > corta una llamada lenta con CoreNoDisponibleError
+✓ |unit| test/unit/core.test.ts > TimeoutCoreDecorator > deja pasar respuestas a tiempo
+✓ |unit| test/unit/core.test.ts > CircuitBreakerCoreDecorator > se abre con fallos técnicos y responde de inmediato mientras está abierto
+✓ |unit| test/unit/core.test.ts > CircuitBreakerCoreDecorator > los rechazos de negocio no abren el circuito
+✓ |unit| test/unit/core.test.ts > CircuitBreakerCoreDecorator > pasa a semiabierto después del tiempo de reset
+✓ |unit| test/unit/core.test.ts > LoggingCoreDecorator > registra éxito, rechazo y error con su duración
+✓ |unit| test/unit/core.test.ts > LoggingCoreDecorator > delega todas las operaciones del puerto
+✓ |unit| test/unit/core.test.ts > CoreSimuladoAdapter > debita, acredita, rechaza y es idempotente por operación
+✓ |unit| test/unit/core.test.ts > CoreLegacyAdapter (HTTP) > traduce cuentas del Core (decimales) a centavos y enmascara el número
+✓ |unit| test/unit/core.test.ts > CoreLegacyAdapter (HTTP) > 404 → sin cuentas o cuenta inexistente
+✓ |unit| test/unit/core.test.ts > CoreLegacyAdapter (HTTP) > obtiene una cuenta
+✓ |unit| test/unit/core.test.ts > CoreLegacyAdapter (HTTP) > envía el monto en decimales y traduce rechazos 422
+✓ |unit| test/unit/core.test.ts > CoreLegacyAdapter (HTTP) > 5xx y errores de red son fallos técnicos
+✓ |unit| test/unit/core.test.ts > fabrica del puerto del Core > el camino síncrono no reintenta y el asíncrono sí
+✓ |unit| test/unit/core.test.ts > fabrica del puerto del Core > valida la configuración
+✓ |unit| test/unit/http.test.ts > endpoints públicos > GET /v1/tarifas y /v1/simulaciones son anónimos y cacheables
+✓ |unit| test/unit/http.test.ts > endpoints públicos > valida la query y responde problem+json
+✓ |unit| test/unit/http.test.ts > endpoints públicos > respeta el X-Request-Id recibido, expone /health y responde 404 a rutas inexistentes
+✓ |unit| test/unit/http.test.ts > documentación > publica el contrato OpenAPI y Swagger UI sin autenticación
+✓ |unit| test/unit/http.test.ts > seguridad > sin token, con token inválido o expirado responde 401 con WWW-Authenticate
+✓ |unit| test/unit/http.test.ts > seguridad > exige el scope de la operación (403)
+✓ |unit| test/unit/http.test.ts > seguridad > un token sin clave privada no se puede firmar
+✓ |unit| test/unit/http.test.ts > planes > POST crea (201 + Location + ETag) y GET devuelve la forma del contrato
+✓ |unit| test/unit/http.test.ts > planes > Idempotency-Key: repite la respuesta original y rechaza otro cuerpo con 409
+✓ |unit| test/unit/http.test.ts > planes > valida el cuerpo, el JSON y el planId
+✓ |unit| test/unit/http.test.ts > planes > lista con filtros, orden y resumen
+✓ |unit| test/unit/http.test.ts > planes > PATCH exige merge-patch+json y controla la versión con If-Match
+✓ |unit| test/unit/http.test.ts > planes > bloqueo, desbloqueo, cancelación y conflictos de estado (409)
+✓ |unit| test/unit/http.test.ts > aportes, retiros, cuotas, movimientos y corridas > aporte 202 + Location; retiro 202; consultas
+✓ |unit| test/unit/http.test.ts > aportes, retiros, cuotas, movimientos y corridas > perfil y cuentas del cliente
+✓ |unit| test/unit/http.test.ts > aportes, retiros, cuotas, movimientos y corridas > un error inesperado responde 500 sin filtrar detalles
+✓ |unit| test/unit/http.test.ts > Servicio de Autenticación > emite tokens con la contraseña y rota el refresh token
+✓ |unit| test/unit/http.test.ts > Servicio de Autenticación > rechaza credenciales inválidas, usuarios inexistentes, refresh vencidos y cuerpos inválidos
+✓ |unit| test/unit/http.test.ts > Servicio de Autenticación > scopes por rol y combinación de roles
+✓ |unit| test/unit/http.test.ts > utilidades de presentación > problem details y cursores
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: flujo completo con transacciones, ledger y outbox > crea, aporta, retira, bloquea, desbloquea y cancela con saldos derivados del ledger
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: flujo completo con transacciones, ledger y outbox > el ledger es de solo inserción (el trigger rechaza UPDATE y DELETE)
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: flujo completo con transacciones, ledger y outbox > si la transacción falla no queda ni el cambio ni el evento (rollback)
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: flujo completo con transacciones, ledger y outbox > listar: filtros, orden por progreso y resumen sobre todos los planes
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: flujo completo con transacciones, ledger y outbox > modificar reprograma cuotas y respeta la versión
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: flujo completo con transacciones, ledger y outbox > corte diario: el SP selecciona cuotas y reintentos; rechazos, prórroga y corridas
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: flujo completo con transacciones, ledger y outbox > completar el plan liquida los fondos; operaciones y eventos repetidos se ignoran
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: autenticación, idempotencia y outbox > refresh tokens y usuarios
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: autenticación, idempotencia y outbox > respuestas idempotentes se guardan y se reemplazan
+✓ |integration| test/integration/postgres.test.ts > PostgreSQL: autenticación, idempotencia y outbox > el relay deja el evento pendiente si el broker falla
+✓ |integration| test/integration/rabbitmq.test.ts > RabbitMQ: publicación/suscripción por tipo de evento > enruta cada evento a las colas suscritas y entrega al consumidor
+✓ |integration| test/integration/rabbitmq.test.ts > RabbitMQ: publicación/suscripción por tipo de evento > un mensaje que falla dos veces termina en la DLQ (no se pierde)
+✓ |integration| test/integration/rabbitmq.test.ts > RabbitMQ: publicación/suscripción por tipo de evento > falla al conectar si el broker no existe
+
+Cobertura (archivos con menos de 100 % en alguna métrica):
+
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   96.57 |    85.57 |   97.47 |   97.95 |                   
+ application/ports |      60 |      100 |      50 |      75 |                   
+  servicios.ts     |       0 |      100 |       0 |       0 | 29-30             
+ ...ation/services |   97.17 |    88.08 |     100 |   98.62 |                   
+  auth.service.ts  |   94.59 |    86.66 |     100 |   96.87 | 61                
+  ...os.service.ts |   89.47 |    77.77 |     100 |   94.28 | 101-102           
+  ...es.service.ts |     100 |     92.3 |     100 |     100 | 147-157,192       
+  ...re.service.ts |   96.05 |    79.41 |     100 |   98.43 | 119               
+ config            |      75 |    63.63 |      50 |      80 |                   
+  env.ts           |      75 |    63.63 |      50 |      80 | 62-63             
+ domain            |   96.87 |       90 |     100 |   96.72 |                   
+  eventos.ts       |       0 |      100 |     100 |       0 | 46-47             
+  fechas.ts        |     100 |       70 |     100 |     100 | 5                 
+ ...ture/messaging |   88.31 |       70 |   81.25 |   94.11 |                   
+  outbox-relay.ts  |   87.09 |    66.66 |   83.33 |   92.85 | 59-60             
+  rabbitmq.ts      |   89.13 |    71.42 |      80 |      95 | 46-47             
+ ...cture/postgres |   93.54 |      100 |   81.81 |     100 |                   
+  ...it-of-work.ts |    92.3 |      100 |      75 |     100 |                   
+  pool.ts          |   94.44 |      100 |   85.71 |     100 |                   
+ ...s/repositories |   97.82 |    69.07 |     100 |   98.38 |                   
+  ...repository.ts |    98.3 |    60.52 |     100 |     100 | ...,85-99,158-276 
+  ...repository.ts |   94.28 |       70 |     100 |   92.85 | 71-72             
+  ...repository.ts |     100 |    74.19 |     100 |     100 | 80,92,119,146-165 
+  ...repository.ts |     100 |     87.5 |     100 |     100 | 33                
+ presentation/http |     100 |     87.5 |     100 |     100 |                   
+  app.ts           |     100 |       80 |     100 |     100 | 64-68             
+ ...tp/controllers |   98.78 |       75 |     100 |     100 |                   
+  contexto.ts      |   83.33 |       50 |     100 |     100 | 8                 
+ ...tion/http/dtos |     100 |    83.33 |     100 |     100 |                   
+  dtos.ts          |     100 |    83.33 |     100 |     100 | 18                
+ ...n/http/mappers |     100 |     87.5 |     100 |     100 |                   
+  ...sos.mapper.ts |     100 |     87.5 |     100 |     100 | 10                
+ ...tp/middlewares |   93.54 |       88 |   95.45 |   94.31 |                   
+  ...middleware.ts |     100 |    91.66 |     100 |     100 | 22                
+  ...middleware.ts |      85 |    71.42 |     100 |   88.88 | 30-36             
+  ...middleware.ts |   91.17 |    93.75 |      80 |    90.9 | 43-44,59          
+ shared            |     100 |    88.88 |     100 |     100 |                   
+  logger.ts        |     100 |       80 |     100 |     100 | 7                 
+-------------------|---------|----------|---------|---------|-------------------

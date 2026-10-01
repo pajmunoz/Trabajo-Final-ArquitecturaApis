@@ -1,0 +1,23 @@
+{
+  "escenario": "sostenida",
+  "duracion_s": 662,
+  "total": {
+    "peticiones": 90815,
+    "rps_promedio": 137.2,
+    "promedio_ms": 187.8,
+    "mediana_ms": 170.4,
+    "p90_ms": 295.5,
+    "p95_ms": 335.8,
+    "p99_ms": 436.2,
+    "max_ms": 1039.9,
+    "tasa_error_pct": 0.001,
+    "codigos": {
+      "200": 83697,
+      "201": 10,
+      "202": 7107,
+      "502": 1
+    }
+  },
+  "rps_maximo_ventana": 175.6,
+  "rps_meseta": 167.2
+}

@@ -1,0 +1,275 @@
+Evidencias de seguridad — http://3.151.57.252 — 2026-10-01T15:51:10Z
+
+
+===== 1. Login correcto: access token JWT RS256 (15 min) + refresh token =====
+$ POST /v1/auth/token (password)
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+X-RateLimit-Remaining-Minute: 29
+X-RateLimit-Limit-Minute: 30
+RateLimit-Remaining: 29
+RateLimit-Limit: 30
+RateLimit-Reset: 50
+X-Request-Id: b95bf3bd-39ba-4b52-abbb-c0010eebdd38
+Cache-Control: no-store
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: 7471633d4f205303380c894a1443e044
+
+{"accessToken":"eyJhbGciOiJS…(recortado)","tokenType":"Bearer","expiresIn":900,"refreshToken":"rt_35c637bb4…(recortado)","scope":"perfil:leer planes:leer planes:escribir aportes:escribir retiros:escribir movimientos:leer cuentas:leer"}
+
+Cabecera y claims del JWT (decodificados, sin la firma):
+{"alg": "RS256", "typ": "JWT", "kid": "billetera-ahorro-auth"}
+{"roles": ["CLIENTE"], "scope": "perfil:leer planes:leer planes:escribir aportes:escribir retiros:escribir movimientos:leer cuentas:leer", "iat": 1790869871, "exp": 1790870771, "aud": "billetera-ahorro-api", "iss": "billetera-ahorro-auth", "sub": "6a1f0c2e-4b3d-4e5f-8a7b-1c2d3e4f5a60", "jti": "3d5810f8-8b4b-497e-a098-f265f9bc506a"}
+
+
+===== 2. Credenciales inválidas → 401 problem+json =====
+$ POST /v1/auth/token (contraseña incorrecta)
+sed: RE error: illegal byte sequence
+HTTP/1.1 401 Unauthorized
+Content-Type: application/problem+json; charset=utf-8
+X-RateLimit-Remaining-Minute: 27
+X-RateLimit-Limit-Minute: 30
+RateLimit-Remaining: 27
+RateLimit-Limit: 30
+RateLimit-Reset: 49
+X-Request-Id: 4b423915-5ca3-4e32-ac0a-975f0c390715
+
+
+===== 3. Sin token → 401 en el Gateway =====
+$ GET /v1/planes-ahorro
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json; charset=utf-8
+WWW-Authenticate: Bearer
+X-Request-Id: 2d6b8b8c-338a-4980-90eb-12c75d4be1bc
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Response-Latency: 1
+Server: kong/3.9.3
+X-Kong-Request-Id: 2b39713b5271c92d6160cd52722d2260
+
+{"message":"Unauthorized"}
+
+
+===== 4. Token con firma falsificada → 401 =====
+$ GET /v1/planes-ahorro (Authorization: Bearer <token alterado>)
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json; charset=utf-8
+WWW-Authenticate: Bearer error="invalid_token"
+X-Request-Id: 3d6a9af1-2a15-426a-b4e0-9ba1c0b6f98b
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Response-Latency: 1
+Server: kong/3.9.3
+X-Kong-Request-Id: 5780bd2983b90e4448ecd87fe077a104
+
+{"message":"Invalid signature"}
+
+
+===== 5. Scope insuficiente → 403 (OPERADOR intenta crear un plan) =====
+$ POST /v1/planes-ahorro con token de OPERADOR
+HTTP/1.1 403 Forbidden
+Content-Type: application/problem+json; charset=utf-8
+X-RateLimit-Remaining-Minute: 59999
+X-RateLimit-Limit-Minute: 60000
+RateLimit-Remaining: 59999
+RateLimit-Limit: 60000
+RateLimit-Reset: 47
+X-Request-Id: 9418a533-2690-4470-8c43-f9466a67b173
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: 4b1d452dca1e3d749651be77b406285e
+
+{"type":"https://api.billetera-ahorro.example.com/problemas/permiso-insuficiente","title":"Permiso insuficiente","status":403,"codigo":"PERMISO_INSUFICIENTE","detail":"Se requiere el scope planes:escribir.","instance":"/v1/planes-ahorro"}
+
+
+===== 6. Titularidad (ABAC): plan inexistente o ajeno → 404 =====
+$ GET /v1/planes-ahorro/{id ajeno}
+HTTP/1.1 404 Not Found
+Content-Type: application/problem+json; charset=utf-8
+X-RateLimit-Remaining-Minute: 59998
+X-RateLimit-Limit-Minute: 60000
+RateLimit-Remaining: 59998
+RateLimit-Limit: 60000
+RateLimit-Reset: 47
+X-Request-Id: 85ae3bcc-98c4-435a-92bd-dd29230ff196
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: f92da314238a560568a2d8726e9f0652
+
+{"type":"https://api.billetera-ahorro.example.com/problemas/no-encontrado","title":"Recurso no encontrado","status":404,"codigo":"NO_ENCONTRADO","detail":"No existe el plan 61171500-26c3-40f7-9100-9c5162bfae13.","instance":"/v1/planes-ahorro/61171500-26c3-40f7-9100-9c5162bfae13"}
+
+
+===== 7. Validación del contrato → 400 con detalle por campo =====
+$ POST /v1/planes-ahorro (cuerpo inválido)
+HTTP/1.1 400 Bad Request
+Content-Type: application/problem+json; charset=utf-8
+X-RateLimit-Remaining-Minute: 59997
+X-RateLimit-Limit-Minute: 60000
+RateLimit-Remaining: 59997
+RateLimit-Limit: 60000
+RateLimit-Reset: 46
+X-Request-Id: 8b524861-dae9-437a-86ac-0d80a624d52f
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: 72aaa908a0ae613d82e2e61651f20867
+
+{"type":"https://api.billetera-ahorro.example.com/problemas/validacion","title":"Datos inválidos","status":400,"codigo":"VALIDACION","detail":"La petición tiene 6 error(es) de validación.","instance":"/v1/planes-ahorro","errores":[{"campo":"nombre","mensaje":"Too small: expected string to have >=1 characters"},{"campo":"icono","mensaje":"Invalid option: expected one of \"shield\"|\"flight_takeoff\"|\"directions_car\"|\"home\"|\"school\"|\"celebration\"|\"savings\"|\"favorite\""},{"campo":"montoMetaCentavos","mensaje":"debe ser mayor o igual a 1"},{"campo":"fechaObjetivo","mensaje":"debe ser una fecha YYYY-MM-DD"},{"campo":"diaDebito","mensaje":"Too big: expected number to be <=28"},{"campo":"cuentaDebitoId","mensaje":"debe ser un UUID"}]}
+
+
+===== 8. Idempotency-Key: primera creación → 201 + Location + ETag =====
+$ POST /v1/planes-ahorro (Idempotency-Key: 08b18214-5970-4b7a-acdb-c312fef68ac9)
+HTTP/1.1 201 Created
+Content-Type: application/json; charset=utf-8
+X-RateLimit-Remaining-Minute: 59996
+X-RateLimit-Limit-Minute: 60000
+RateLimit-Remaining: 59996
+RateLimit-Limit: 60000
+RateLimit-Reset: 46
+X-Request-Id: fdf82812-b878-4a37-b24c-581a3daad719
+Location: /v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466
+ETag: W/"v1"
+Idempotent-Replayed: false
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: 37cefb2a4087700b9ca7813640c06969
+
+{"id":"39548beb-8c34-413f-90e9-8936b9301466","nombre":"Evidencia","icono":"savings","estado":"ACTIVO","moneda":"USD","montoMetaCentavos":120000,"fechaObjetivo":"2027-12-01","cuotaMensualCentavos":8315,"plazoMeses":14,"prorrogasMeses":0,"diaDebito":10,"cuentaDebito":{"id":"0c6f2a9e-1b3d-4e5f-8a7b-6c5d4e3f2a1b","tipo":"AHORROS","alias":"pablo.ahorros","moneda":"USD","numeroEnmascarado":"******8901"},"bloqueado":true,"bloqueadoDesde":"2026-10-01T15:51:14.783Z","tasas":{"baseAnual":4.5,"bonoBloqueoAnual":1.1,"totalAnual":5.6,"efectivaAnual":5.75},"saldoCentavos":0,"saldoDisponibleCentavos":0,"interesesDevengadosCentavos":0,"progreso":0,"proximoDebito":"2026-10-10","fechaInicio":"2026-10-01","fechaFinEstimada":"2027-11-10","creadoEn":"2026-10-01T15:51:14.783Z","actualizadoEn":"2026-10-01T15:51:14.783Z"}
+
+
+===== 9. Idempotency-Key: reintento idéntico → misma respuesta, Idempotent-Replayed: true =====
+$ POST /v1/planes-ahorro (misma clave y cuerpo)
+HTTP/1.1 201 Created
+location: /v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466
+Idempotent-Replayed: true
+
+
+===== 10. Idempotency-Key reutilizada con otro cuerpo → 409 =====
+$ POST /v1/planes-ahorro (misma clave, otro cuerpo)
+HTTP/1.1 409 Conflict
+Content-Type: application/problem+json; charset=utf-8
+X-RateLimit-Remaining-Minute: 59994
+X-RateLimit-Limit-Minute: 60000
+RateLimit-Remaining: 59994
+RateLimit-Limit: 60000
+RateLimit-Reset: 45
+X-Request-Id: cab85969-6f32-46ff-91ab-b2eb84de3983
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: 75131e553b4b6840a9c77c3bcc93db7e
+
+{"type":"https://api.billetera-ahorro.example.com/problemas/idempotencia","title":"Idempotency-Key reutilizada","status":409,"codigo":"IDEMPOTENCIA_CONFLICTO","detail":"La clave ya se usó con un cuerpo distinto.","instance":"/v1/planes-ahorro"}
+
+
+===== 11. Patrón State: retiro en plan bloqueado → 409 RETIRO_NO_PERMITIDO =====
+$ POST /v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466/retiros
+HTTP/1.1 409 Conflict
+Content-Type: application/problem+json; charset=utf-8
+X-RateLimit-Remaining-Minute: 59993
+X-RateLimit-Limit-Minute: 60000
+RateLimit-Remaining: 59993
+RateLimit-Limit: 60000
+RateLimit-Reset: 45
+X-Request-Id: 267a095f-b05f-4173-98c9-30acafd3dac2
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: be047704f1b3553bad0b7d03865fa953
+
+{"type":"https://api.billetera-ahorro.example.com/problemas/retiro-no-permitido","title":"Retiro no permitido","status":409,"codigo":"RETIRO_NO_PERMITIDO","detail":"El plan tiene los fondos bloqueados. Desbloquéelo antes de retirar.","instance":"/v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466/retiros"}
+
+
+===== 12. Concurrencia optimista: If-Match desactualizado → 412 =====
+$ PATCH /v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466 (If-Match: W/"v0")
+HTTP/1.1 412 Precondition Failed
+Content-Type: application/problem+json; charset=utf-8
+X-RateLimit-Remaining-Minute: 59992
+X-RateLimit-Limit-Minute: 60000
+RateLimit-Remaining: 59992
+RateLimit-Limit: 60000
+RateLimit-Reset: 45
+X-Request-Id: 874815c1-7032-472b-a2cc-c39d5dcf96d7
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: 5a8b1c6ade6f84351e077a5da5a86117
+
+{"type":"https://api.billetera-ahorro.example.com/problemas/version-desactualizada","title":"Versión desactualizada","status":412,"codigo":"VERSION_DESACTUALIZADA","detail":"El plan cambió desde que se leyó.","instance":"/v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466"}
+
+
+===== 13. Aporte asíncrono → 202 + Location; luego EJECUTADO (DebitoSolicitado → Core → DebitoEjecutado) =====
+$ POST /v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466/aportes
+HTTP/1.1 202 Accepted
+Content-Type: application/json; charset=utf-8
+X-RateLimit-Remaining-Minute: 59991
+X-RateLimit-Limit-Minute: 60000
+RateLimit-Remaining: 59991
+RateLimit-Limit: 60000
+RateLimit-Reset: 44
+X-Request-Id: 27255234-e8f5-4a14-9063-6eae50bd9d44
+Location: /v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466/aportes/2b2fd6c2-42c4-4f85-abe6-6bc384e39ef5
+Idempotent-Replayed: false
+Server: kong/3.9.3
+Access-Control-Allow-Origin: *
+Access-Control-Expose-Headers: Location,ETag,Retry-After,X-Request-Id,Idempotent-Replayed,RateLimit-Limit,RateLimit-Remaining,RateLimit-Reset
+X-Kong-Request-Id: a88ec129b458385559af8975a2bc643e
+
+{"id":"2b2fd6c2-42c4-4f85-abe6-6bc384e39ef5","planId":"39548beb-8c34-413f-90e9-8936b9301466","montoCentavos":500,"moneda":"USD","cuentaOrigen":{"id":"0c6f2a9e-1b3d-4e5f-8a7b-6c5d4e3f2a1b","tipo":"AHORROS","alias":"pablo.ahorros","moneda":"USD","numeroEnmascarado":"******8901"},"estado":"PENDIENTE","solicitadoEn":"2026-10-01T15:51:16.206Z","procesadoEn":null,"motivoFallo":null,"correlationId":"4c45d2ec-50af-4538-ba30-d053c90c30eb"}
+
+$ GET /v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466/aportes/2b2fd6c2-42c4-4f85-abe6-6bc384e39ef5 (3 s después)
+{"id":"2b2fd6c2-42c4-4f85-abe6-6bc384e39ef5","planId":"39548beb-8c34-413f-90e9-8936b9301466","montoCentavos":500,"moneda":"USD","cuentaOrigen":{"id":"0c6f2a9e-1b3d-4e5f-8a7b-6c5d4e3f2a1b","tipo":"AHORROS","alias":"pablo.ahorros","moneda":"USD","numeroEnmascarado":"******8901"},"estado":"FALLIDO","solicitadoEn":"2026-10-01T15:51:16.206Z","procesadoEn":"2026-10-01T15:51:16.887Z","motivoFallo":"FONDOS_INSUFICIENTES","correlationId":"4c45d2ec-50af-4538-ba30-d053c90c30eb"}
+
+
+===== 14. Limpieza: cancelación con devolución del saldo =====
+$ POST /v1/planes-ahorro/39548beb-8c34-413f-90e9-8936b9301466/cancelacion
+{'saldoCentavos': 0, 'interesesPerdidosCentavos': 0, 'montoDevueltoCentavos': 0, 'estadoDevolucion': 'EJECUTADO'} CANCELADO
+
+
+===== 15. Refresh token con rotación: el usado deja de servir → 401 =====
+$ POST /v1/auth/token (refresh_token, dos veces)
+Primer uso:
+HTTP 200
+Reutilizado:
+HTTP 401
+
+
+===== 16. TLS: el Gateway negocia TLS 1.3 y rechaza TLS 1.2 =====
+$ openssl s_client -connect 3.151.57.252:443
+--- con -tls1_3:
+New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384
+Protocol: TLSv1.3
+--- con -tls1_2:
+80A1E5F101000000:error:0A00042E:SSL routines:ssl3_read_bytes:tlsv1 alert protocol version:ssl/record/rec_layer_s3.c:918:SSL alert number 70
+New, (NONE), Cipher is (NONE)
+80A1E5F101000000:error:0A000197:SSL routines:SSL_shutdown:shutdown while in init:ssl/ssl_lib.c:2804:
+
+
+===== 17. Endpoint público: caché del Gateway (X-Cache-Status) y rate limit (RateLimit-Remaining) =====
+$ GET /v1/tarifas (dos veces)
+HTTP/1.1 200 OK
+RateLimit-Remaining: 599
+Cache-Control: public, max-age=300
+X-Cache-Status: Hit
+
+HTTP/1.1 200 OK
+RateLimit-Remaining: 598
+Cache-Control: public, max-age=300
+X-Cache-Status: Hit
+
+
+
+===== 18. Rate limiting del login (30/min por IP) → 429 + Retry-After =====
+$ 40 × POST /v1/auth/token con credenciales incorrectas
+401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 401 429 429 429 429 429 429 429 429 429 429 429 429 429 429 429 429 429 
+HTTP/1.1 429 Too Many Requests
+Retry-After: 25
+RateLimit-Remaining: 0
+RateLimit-Limit: 30
+RateLimit-Reset: 25
+  "message":"API rate limit exceeded",

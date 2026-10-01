@@ -1,0 +1,40 @@
+
+
+  █ THRESHOLDS 
+
+    http_req_duration{fase:recuperacion}
+    ✓ 'p(95)<500' p(95)=305.8ms
+
+    http_req_failed{fase:recuperacion}
+    ✓ 'rate<0.01' rate=0.00%
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 63013   341.808543/s
+    checks_succeeded...: 100.00% 63013 out of 63013
+    checks_failed......: 0.00%   0 out of 63013
+
+    ✓ respuesta 2xx
+    ✓ simulación 200 o 429 (rate limit)
+
+    HTTP
+    http_req_duration..............: avg=326.34ms min=97.03ms  med=187.29ms p(90)=739.34ms p(95)=973.11ms p(99)=1.42s    max=1.94s   
+      { expected_response:true }...: avg=515.58ms min=98.53ms  med=425.62ms p(90)=979.48ms p(95)=1.21s    p(99)=1.51s    max=1.94s   
+      { fase:recuperacion }........: avg=172.09ms min=100.67ms med=147.53ms p(90)=273.12ms p(95)=305.8ms  p(99)=445.78ms max=731.26ms
+    http_req_failed................: 51.08% 32198 out of 63024
+      { fase:recuperacion }........: 0.00%  0 out of 1034
+    http_reqs......................: 63024  341.868212/s
+
+    EXECUTION
+    iteration_duration.............: avg=796.91ms min=97.1ms   med=208.71ms p(90)=1.84s    p(95)=2.08s    p(99)=2.55s    max=3.33s   
+    iterations.....................: 63013  341.808543/s
+    vus............................: 3      min=0              max=500
+    vus_max........................: 500    min=500            max=500
+
+    NETWORK
+    data_received..................: 136 MB 736 kB/s
+    data_sent......................: 35 MB  187 kB/s
+
+
+

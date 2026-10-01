@@ -1,0 +1,9 @@
+\chapter*{Resumen}
+\addcontentsline{toc}{chapter}{Resumen}
+
+Este informe documenta el diseño y la construcción de la \emph{Billetera de Ahorro}, un producto bancario de planes de ahorro programado expuesto mediante APIs. El cliente fija una meta y una fecha objetivo, el sistema calcula la cuota mensual, la debita de forma automática de su cuenta y muestra el progreso; si el cliente bloquea el plan, obtiene una tasa preferencial.
+
+El trabajo siguió las cuatro fases de la asignatura. En la Fase~1 justificamos el caso de negocio con un modelo de monetización indirecta basado en el spread y la permanencia de los depósitos. En la Fase~2 elegimos un estilo híbrido REST y orientado a eventos, desplegado como monolito modular detrás de un API Gateway, y justificamos sus patrones con la matriz ISO/IEC~25010. En la Fase~3 escribimos el contrato OpenAPI~3.1 antes que el código (contract-first). En la Fase~4 implementamos el backend en Node.js por capas, con JWT RS256, Circuit Breaker, Retry con jitter, Transactional Outbox e idempotencia; alcanzamos 97,9~\% de cobertura de líneas con 97 pruebas, desplegamos en AWS con un pipeline de CI/CD y medimos el sistema con k6: bajo carga sostenida de 200 usuarios el p95 fue de 336~ms con 0,001~\% de errores, y el punto de ruptura se ubicó en unas 220 peticiones por segundo, limitado por la base de datos.
+
+\medskip
+\textbf{Palabras clave:} API-First, OpenAPI, arquitectura orientada a eventos, patrones de resiliencia, JWT, pruebas de carga, CI/CD.

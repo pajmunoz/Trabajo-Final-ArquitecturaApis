@@ -1,0 +1,40 @@
+{
+  "escenario": "ruptura",
+  "duracion_s": 163,
+  "total": {
+    "peticiones": 27729,
+    "rps_promedio": 170.1,
+    "promedio_ms": 443.9,
+    "mediana_ms": 271.8,
+    "p90_ms": 1042.3,
+    "p95_ms": 1510.5,
+    "p99_ms": 2120.7,
+    "max_ms": 2819.9,
+    "tasa_error_pct": 0.018,
+    "codigos": {
+      "0": 4,
+      "200": 25494,
+      "201": 10,
+      "202": 2220,
+      "502": 1
+    }
+  },
+  "rps_maximo_ventana": 301.6,
+  "rps_meseta": 103.6,
+  "punto_de_ruptura": {
+    "degradacion": {
+      "segundo": 100,
+      "rps": 220.7,
+      "vus": 138,
+      "p95_ms": 588,
+      "errores_pct": 0.0
+    },
+    "saturacion": {
+      "segundo": 140,
+      "rps": 301.6,
+      "vus": 210,
+      "p95_ms": 794,
+      "errores_pct": 0.0
+    }
+  }
+}

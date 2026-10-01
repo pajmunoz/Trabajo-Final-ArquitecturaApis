@@ -55,8 +55,10 @@ info:
     name: Equipo Billetera de Ahorro — Maestría en Software, UPS
 
 servers:
-  - url: https://api.billetera-ahorro.example.com
-    description: Producción (detrás del API Gateway)
+  - url: https://3.151.57.252
+    description: Producción en AWS (Kong, TLS 1.3, certificado autofirmado)
+  - url: http://3.151.57.252
+    description: Producción en AWS (Kong, HTTP)
   - url: http://localhost:8000
     description: Local (Kong en Docker Compose)
 
@@ -234,7 +236,7 @@ paths:
       summary: Consultar el perfil del cliente autenticado
       description: Datos básicos para personalizar la interfaz (saludo, encabezado).
       security:
-        - bearerAuth: [perfil:leer]
+        - bearerAuth: ['perfil:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
       responses:
@@ -264,7 +266,7 @@ paths:
         disponible. Se consulta al Core bancario a través del Adaptador Core (timeout de 2 s, sin reintentos).
         Si el Core no responde o el Circuit Breaker está abierto, devuelve `503`.
       security:
-        - bearerAuth: [cuentas:leer]
+        - bearerAuth: ['cuentas:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
       responses:
@@ -304,7 +306,7 @@ paths:
         La respuesta incluye un `resumen` calculado sobre **todos** los planes que cumplen el filtro,
         no solo los de la página, para mostrar los totales sin descargar todas las páginas.
       security:
-        - bearerAuth: [planes:leer]
+        - bearerAuth: ['planes:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - name: estado
@@ -368,7 +370,7 @@ paths:
         Requiere `Idempotency-Key`: un reintento con la misma clave y el mismo cuerpo devuelve el plan
         ya creado en lugar de crear otro.
       security:
-        - bearerAuth: [planes:escribir]
+        - bearerAuth: ['planes:escribir']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -407,7 +409,7 @@ paths:
       summary: Consultar un plan
       description: Incluye el progreso de la meta como campo calculado (RF-05.1).
       security:
-        - bearerAuth: [planes:leer]
+        - bearerAuth: ['planes:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
       responses:
@@ -438,7 +440,7 @@ paths:
 
         `If-Match` es opcional: si se envía y el plan cambió desde que se leyó, responde `412`.
       security:
-        - bearerAuth: [planes:escribir]
+        - bearerAuth: ['planes:escribir']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - $ref: '#/components/parameters/IfMatch'
@@ -483,7 +485,7 @@ paths:
 
         Bloquear un plan ya bloqueado responde `409` sin cambiar nada.
       security:
-        - bearerAuth: [planes:escribir]
+        - bearerAuth: ['planes:escribir']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
       responses:
@@ -517,7 +519,7 @@ paths:
         un movimiento `PENALIDAD` en el ledger. No se puede deshacer, pero el plan se puede volver a
         bloquear después con `/bloqueo`.
       security:
-        - bearerAuth: [planes:escribir]
+        - bearerAuth: ['planes:escribir']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -555,7 +557,7 @@ paths:
         `CreditoSolicitado`), por eso la respuesta informa `estadoDevolucion: PENDIENTE`. Por
         defecto se devuelve a la cuenta de débito del plan; el cliente puede elegir otra.
       security:
-        - bearerAuth: [planes:escribir]
+        - bearerAuth: ['planes:escribir']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -600,7 +602,7 @@ paths:
 
         Requiere `Idempotency-Key` para que un reintento de red no genere un segundo débito.
       security:
-        - bearerAuth: [aportes:escribir]
+        - bearerAuth: ['aportes:escribir']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -641,7 +643,7 @@ paths:
       operationId: obtenerAporte
       summary: Consultar el estado de un aporte
       security:
-        - bearerAuth: [planes:leer]
+        - bearerAuth: ['planes:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
       responses:
@@ -677,7 +679,7 @@ paths:
 
         Requiere `Idempotency-Key` para que un reintento de red no genere un segundo retiro.
       security:
-        - bearerAuth: [retiros:escribir]
+        - bearerAuth: ['retiros:escribir']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -718,7 +720,7 @@ paths:
       operationId: obtenerRetiro
       summary: Consultar el estado de un retiro
       security:
-        - bearerAuth: [planes:leer]
+        - bearerAuth: ['planes:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
       responses:
@@ -750,7 +752,7 @@ paths:
         Muestra cada cuota con su estado de cobro y el número de intento (RF-03.1). Un error técnico
         del banco no consume intentos: solo cuenta el rechazo del cargo por parte del Core.
       security:
-        - bearerAuth: [planes:leer]
+        - bearerAuth: ['planes:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - name: estado
@@ -801,7 +803,7 @@ paths:
         desplazarían los resultados si se usara offset. El cursor es opaco: el consumidor no debe
         interpretarlo ni construirlo.
       security:
-        - bearerAuth: [movimientos:leer]
+        - bearerAuth: ['movimientos:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - name: tipo
@@ -868,7 +870,7 @@ paths:
       summary: Listar las corridas del corte diario de débitos
       description: Resultado de cada ejecución del Batch Processor (RNF-01.2). Solo `OPERADOR` y `AUDITOR`.
       security:
-        - bearerAuth: [corridas:leer]
+        - bearerAuth: ['corridas:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
         - name: desde
@@ -915,7 +917,7 @@ paths:
       operationId: obtenerCorridaCobro
       summary: Consultar una corrida
       security:
-        - bearerAuth: [corridas:leer]
+        - bearerAuth: ['corridas:leer']
       parameters:
         - $ref: '#/components/parameters/XRequestId'
       responses:

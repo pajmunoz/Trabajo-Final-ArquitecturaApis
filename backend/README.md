@@ -81,7 +81,7 @@ docker compose up -d postgres rabbitmq
 npm run coverage                        # unitarias + integración, con reporte en coverage/
 ```
 
-Las pruebas unitarias usan repositorios en memoria (`test/fakes/`) y el `CoreSimuladoAdapter`; las de integración corren contra PostgreSQL (base `billetera_test`) y RabbitMQ (vhost `pruebas`). Cobertura actual: **97,9 % de líneas** (umbral configurado: 80 %). Se excluyen los puntos de entrada (`src/apps`), verificados con docker compose, y el Core simulado.
+Las pruebas unitarias usan repositorios en memoria (`test/fakes/`) y el `CoreSimuladoAdapter`; las de integración corren contra PostgreSQL (base `billetera_test`) y RabbitMQ (vhost `pruebas`). 97 pruebas (84 unitarias y 13 de integración). Cobertura actual: **97,9 % de líneas** (umbral configurado: 80 %). Se excluyen los puntos de entrada (`src/apps`), verificados con docker compose, y el Core simulado.
 
 ## Despliegue en AWS (us-east-2)
 
@@ -113,3 +113,14 @@ Secrets requeridos en GitHub (Settings → Secrets and variables → Actions): `
 ### Costos
 
 Encendida: la instancia consume créditos de la capa gratuita. Apagada: solo el disco (30 GB gp3) y la IP pública reservada, unos centavos por día.
+
+## Pruebas de carga (k6)
+
+```bash
+k6 run pruebas-carga/carga-sostenida.js   # 0→200 VUs, meseta 7 min (umbral p95 < 500 ms, error < 1 %)
+k6 run pruebas-carga/pico.js              # 0→500 VUs de golpe, 1,5 min, recuperación
+k6 run pruebas-carga/ruptura.js           # tasa creciente hasta degradar (punto de ruptura)
+python pruebas-carga/analizar.py sostenida --metricas pruebas-carga/resultados/metricas-sostenida.csv
+```
+
+`BASE_URL` apunta por defecto a la instancia de AWS. Los resultados, las gráficas y el análisis están en `docs/evidencias/fase-4-carga/` y en el informe [`FASE-4-DESARROLLO.md`](../docs/informes/FASE-4-DESARROLLO.md).

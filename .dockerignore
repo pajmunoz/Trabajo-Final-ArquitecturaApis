@@ -1,0 +1,11 @@
+# Contexto de la imagen del backend (docker build -f backend/Dockerfile .): solo lo necesario.
+*
+!backend/package.json
+!backend/package-lock.json
+!backend/tsconfig.json
+!backend/tsconfig.build.json
+!backend/src/**
+!backend/db/**
+!backend/deploy/**
+!backend/kong/kong.template.yml
+!contracts/openapi.yaml
