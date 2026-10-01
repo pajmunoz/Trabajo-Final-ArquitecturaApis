@@ -3,7 +3,7 @@
 
 ## 1. Adapter
 
-**Dónde:** contenedor **Adaptador Core (Fachada)**. Se define la interfaz `CoreBancarioPort` con dos implementaciones, seleccionadas por perfil de Spring:
+**Dónde:** contenedor **Adaptador Core (Fachada)**. Se define la interfaz `CoreBancarioPort` con dos implementaciones, seleccionadas por configuración (`CORE_MODO`):
 - `CoreLegacyAdapter`: traduce las llamadas del dominio a la interfaz SOAP/REST del Core Bancario Legacy. En el proyecto, ese Core es la simulación en MongoDB de la carpeta `bdd/` (fuera de alcance).
 - `CoreSimuladoAdapter`: responde en memoria, sin depender de ningún Core (perfil de pruebas unitarias).
 
@@ -18,7 +18,7 @@ Atiende los dos flujos del diagrama de contenedores: la validación síncrona de
 ## 2. Decorator
 
 **Dónde:** dentro del **Adaptador Core**, como envoltorios sobre `CoreBancarioPort`:
-`Retry( CircuitBreaker( Logging( CoreLegacyAdapter ) ) )`, construido con `Decorators` de Resilience4j.
+`Retry( CircuitBreaker( Logging( Timeout( CoreLegacyAdapter ) ) ) )`. Cada decorador implementa `CoreBancarioPort`; el Circuit Breaker usa la librería opossum.
 
 El Retry va por fuera para que cada intento cuente en la ventana del Circuit Breaker; con el circuito abierto, el Retry no reintenta y el fallo se devuelve de inmediato.
 
@@ -72,7 +72,7 @@ El Retry va por fuera para que cada intento cuente en la ventana del Circuit Bre
 | Ahorro Core API (retiro parcial y devolución al cancelar) | `CreditoSolicitado` | Adaptador Core |
 | Adaptador Core | `DebitoEjecutado`, `DebitoFallido`, `CreditoEjecutado`, `CreditoFallido` | Batch Processor (registra en el ledger el resultado de **todo** débito y crédito y aplica los reintentos), Sistema de Notificaciones |
 
-Dentro de cada servicio, los eventos se emiten como eventos de dominio (`ApplicationEventPublisher`) y un listener los envía al broker.
+Dentro de cada servicio, los eventos se crean como eventos de dominio y se guardan en la outbox; un relay los publica en RabbitMQ y los consumidores se suscriben por tipo de evento. Si un consumidor falla dos veces, el mensaje pasa a una Dead Letter Queue.
 
 **Por qué / impacto:**
 - Desacopla la API del Core legacy y de las notificaciones (RNF-03.1, RF-05.2).
@@ -85,4 +85,4 @@ Dentro de cada servicio, los eventos se emiten como eventos de dominio (`Applica
 
 ## Requisito para aplicar State y Strategy en el Batch
 
-El diagrama C4 indica que el Batch Processor invoca el stored procedure `sp_procesar_debitos_ahorro_programado()`. Para que los patrones anteriores apliquen, el SP solo debe **seleccionar los débitos del día**. Las transiciones de estado, los reintentos y los cálculos deben quedar en el código Java del Batch. Si esa lógica se deja en el SP, los patrones State y Strategy no aplican en el Batch y esa parte queda fuera de la cobertura de pruebas unitarias.
+El diagrama C4 indica que el Batch Processor invoca el stored procedure `sp_procesar_debitos_ahorro_programado()`. Para que los patrones anteriores apliquen, el SP solo debe **seleccionar los débitos del día**. Las transiciones de estado, los reintentos y los cálculos deben quedar en el código del Batch. Si esa lógica se deja en el SP, los patrones State y Strategy no aplican en el Batch y esa parte queda fuera de la cobertura de pruebas unitarias.

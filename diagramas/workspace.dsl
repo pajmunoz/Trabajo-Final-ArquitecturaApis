@@ -9,12 +9,12 @@ workspace "Core Bancario - Módulo de Ahorro Programado" "Sistema para la gesti�
         ahorroSystem = softwareSystem "Sistema de Ahorro Programado" "Permite crear, simular, debitar y consultar planes de ahorro." {
             webApp = container "Single Page Application (SPA)" "Interfaz gráfica para el cliente" "Next.js (React)" "Web Browser"
             apiGateway = container "API Gateway" "Punto de entrada único, TLS 1.3, validación de firma y expiración del JWT, Rate Limiting" "Kong Gateway"
-            authService = container "Servicio de Autenticación" "Autentica al cliente y emite JWT firmados de corta duración + refresh token" "Spring Boot + JWT (RS256)"
-            ahorroService = container "Ahorro Core API" "Planes, simulación pública, aportes, retiros y consultas; publica eventos vía tabla outbox" "Spring Boot REST API"
-            batchEngine = container "Batch Processor" "Corte diario de débitos, reintentos de negocio y registro de resultados en el ledger. El SP de débitos solo selecciona los del día" "Spring Boot (CronJob + Worker)"
+            authService = container "Servicio de Autenticación" "Autentica al cliente y emite JWT firmados de corta duración + refresh token" "Node.js + Express + JWT (RS256)"
+            ahorroService = container "Ahorro Core API" "Planes, simulación pública, aportes, retiros y consultas; publica eventos vía tabla outbox" "Node.js + Express 5 (REST)"
+            batchEngine = container "Batch Processor" "Corte diario de débitos, reintentos de negocio y registro de resultados en el ledger. El SP de débitos solo selecciona los del día" "Node.js (CronJob + Worker)"
             database = container "PostgreSQL Database" "Planes, calendario de aportes, usuarios, ledger y outbox" "PostgreSQL 15" "Database"
             eventBroker = container "Message Broker" "Publicación/suscripción de eventos (EDA)" "RabbitMQ" "Queue"
-            coreAdapter = container "Adaptador Core (Fachada)" "Puerto CoreBancarioPort; traduce REST/eventos a la interfaz del Core; Circuit Breaker, Timeout y Retry con jitter (solo asíncrono)" "Spring Boot + Resilience4j"
+            coreAdapter = container "Adaptador Core (Fachada)" "Puerto CoreBancarioPort; traduce REST/eventos a la interfaz del Core; Circuit Breaker, Timeout y Retry con jitter (solo asíncrono)" "Node.js + opossum"
         }
 
         # Contexto
@@ -34,7 +34,7 @@ workspace "Core Bancario - Módulo de Ahorro Programado" "Sistema para la gesti�
         batchEngine -> database "Selecciona los débitos del día (SP) y registra resultados en el ledger" "JDBC"
         batchEngine -> eventBroker "Publica 'DebitoSolicitado' vía outbox y consume los resultados de débitos y créditos para el ledger" "AMQP"
         coreAdapter -> eventBroker "Consume 'DebitoSolicitado' / 'CreditoSolicitado' y publica su resultado (Ejecutado / Fallido)" "AMQP"
-        coreAdapter -> coreLegacy "Invoca la interfaz del Core (Retry → Circuit Breaker → Logging)" "SOAP / REST"
+        coreAdapter -> coreLegacy "Invoca la interfaz del Core (Retry → Circuit Breaker → Logging → Timeout)" "SOAP / REST"
         notificationSystem -> eventBroker "Consume eventos y envía correos/SMS" "AMQP"
     }
 

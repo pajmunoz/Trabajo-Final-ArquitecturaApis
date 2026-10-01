@@ -1,0 +1,67 @@
+# Kong en modo DB-less. `npm run claves` genera kong/kong.yml a partir de esta plantilla.
+# Patrón API Gateway: punto de entrada único, TLS 1.3, validación de firma y
+# expiración del JWT, rate limiting, caché de respuestas públicas y X-Request-Id.
+_format_version: "3.0"
+
+services:
+  - name: servicio-autenticacion
+    url: http://auth:3001
+    routes:
+      - name: auth
+        paths: [/v1/auth]
+        strip_path: false
+        methods: [POST, OPTIONS]
+    plugins:
+      # Frena ataques de fuerza bruta sobre el login.
+      - name: rate-limiting
+        config: { minute: 30, policy: local, limit_by: ip }
+
+  - name: ahorro-core-api
+    url: http://api:3000
+    routes:
+      # Públicos y anónimos: simular antes de registrarse. Límite más estricto y caché.
+      - name: publico
+        paths: [/v1/tarifas, /v1/simulaciones]
+        strip_path: false
+        methods: [GET, OPTIONS]
+        plugins:
+          - name: rate-limiting
+            config: { minute: 600, policy: local, limit_by: ip }
+          - name: proxy-cache
+            config:
+              strategy: memory
+              cache_ttl: 300
+              content_type: [application/json, application/json; charset=utf-8]
+              request_method: [GET]
+              response_code: [200]
+      # Autenticados: el Gateway valida firma RS256 y expiración del JWT.
+      - name: privado
+        paths: [/v1]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config:
+              key_claim_name: iss
+              claims_to_verify: [exp]
+              header_names: [authorization]
+          - name: rate-limiting
+            config: { minute: 60000, policy: local, limit_by: ip }
+
+consumers:
+  # El "consumidor" es el emisor de los tokens: Kong busca la clave pública por el claim iss.
+  - username: billetera-ahorro-auth
+    jwt_secrets:
+      - key: billetera-ahorro-auth
+        algorithm: RS256
+        rsa_public_key: __JWT_PUBLIC_KEY__
+
+plugins:
+  - name: correlation-id
+    config: { header_name: X-Request-Id, generator: uuid, echo_downstream: true }
+  - name: cors
+    config:
+      origins: ["*"]
+      methods: [GET, POST, PATCH, OPTIONS]
+      headers: [Authorization, Content-Type, Idempotency-Key, If-Match, X-Request-Id]
+      exposed_headers: [Location, ETag, Retry-After, X-Request-Id, Idempotent-Replayed, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset]
+      max_age: 3600

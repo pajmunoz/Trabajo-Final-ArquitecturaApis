@@ -70,7 +70,7 @@ Organizamos los componentes según las cuatro capas de una arquitectura orientad
 
 Modelamos la arquitectura con el enfoque C4 en Structurizr DSL (archivo diagramas/workspace.dsl). A nivel de contexto el sistema solo depende de dos sistemas que el banco ya tiene: el Core bancario, que sigue siendo el responsable de las cuentas y de las operaciones contables, y el sistema de notificaciones.
 
-Ambos sistemas quedan fuera del alcance del proyecto. Para poder ejecutar el flujo completo, el Core bancario se simula con una base MongoDB (carpeta bdd/) que reproduce clientes, cuentas y saldos como lo haría un core de producción. La Billetera de Ahorro no accede a esa base directamente: toda interacción pasa por el Adaptador Core, igual que ocurriría con el Core real.
+Ambos sistemas quedan fuera del alcance del proyecto. Para poder ejecutar el flujo completo, el Core bancario se simula con una base MongoDB Atlas (modelo de la carpeta bdd/) que reproduce clientes, cuentas y saldos como lo haría un core de producción. La Billetera de Ahorro no accede a esa base directamente: toda interacción pasa por el Adaptador Core, igual que ocurriría con el Core real.
 
 ![Ilustración 1. Diagrama de contexto (C4, nivel 1)](diagramas/export/img/Contexto.png)
 
@@ -78,7 +78,7 @@ Ambos sistemas quedan fuera del alcance del proyecto. Para poder ejecutar el flu
 
 ### 2.3 Diagrama de contenedores
 
-Decidimos desplegar la solución como un monolito modular y no como microservicios. En la infografía de rediseño vista en clase, esta opción aparece como la adecuada para equipos pequeños y dominios simples, y ese es nuestro caso: tenemos un solo dominio (los planes de ahorro) y un equipo de cinco personas. Separamos en contenedores propios únicamente el Batch Processor, el Adaptador Core y el Servicio de Autenticación, porque tienen un ciclo de ejecución o requisitos de seguridad distintos a los de la API.
+Decidimos desplegar la solución como un monolito modular y no como microservicios. Todo el backend es un solo proyecto en Node.js (TypeScript) organizado en capas (dominio, aplicación, infraestructura y presentación), con un punto de entrada por proceso. En la infografía de rediseño vista en clase, esta opción aparece como la adecuada para equipos pequeños y dominios simples, y ese es nuestro caso: tenemos un solo dominio (los planes de ahorro) y un equipo de cinco personas. Separamos en contenedores propios únicamente el Batch Processor, el Adaptador Core y el Servicio de Autenticación, porque tienen un ciclo de ejecución o requisitos de seguridad distintos a los de la API.
 
 La Ahorro Core API y el Batch Processor no publican directamente en RabbitMQ: guardan el evento en una tabla outbox dentro de la misma transacción que la operación que lo origina, y un publicador lo envía al broker después del commit (sección 4.1).
 
@@ -90,10 +90,10 @@ La Ahorro Core API y el Batch Processor no publican directamente en RabbitMQ: gu
 |---|---|---|
 | SPA | Next.js (React) | Interfaz del cliente |
 | API Gateway | Kong Gateway | Punto de entrada único, TLS 1.3, validación de firma y expiración del JWT, Rate Limiting |
-| Servicio de Autenticación | Spring Boot + JWT (RS256) | Verifica credenciales y emite el access token y el refresh token |
-| Ahorro Core API | Spring Boot (REST) | Planes, simulación pública, aportes bajo solicitud y consultas; publica eventos mediante la tabla outbox |
-| Batch Processor | Spring Boot (CronJob + Worker) | Corte diario de débitos automáticos, reintentos de negocio y registro en el ledger del resultado de todos los débitos |
-| Adaptador Core | Spring Boot + Resilience4j | Único punto de contacto con el Core legacy, detrás del puerto CoreBancarioPort |
+| Servicio de Autenticación | Node.js + Express + JWT (RS256) | Verifica credenciales y emite el access token y el refresh token |
+| Ahorro Core API | Node.js + Express 5 (REST) | Planes, simulación pública, aportes bajo solicitud y consultas; publica eventos mediante la tabla outbox |
+| Batch Processor | Node.js (CronJob + Worker) | Corte diario de débitos automáticos, reintentos de negocio y registro en el ledger del resultado de todos los débitos |
+| Adaptador Core | Node.js + opossum (Circuit Breaker) | Único punto de contacto con el Core legacy, detrás del puerto CoreBancarioPort |
 | Message Broker | RabbitMQ | Publicación y suscripción de eventos |
 | Base de datos | PostgreSQL 15 | Datos del dominio, ledger y tabla outbox |
 
@@ -151,7 +151,8 @@ La Tabla 5 resume los patrones que aplicamos. Para cada uno indicamos el pilar a
 | Caché HTTP | Consumo | GET /v1/simulaciones con Cache-Control | La misma entrada da el mismo resultado; baja la latencia (RNF-01.1) |
 | Publicación / suscripción | Estilo EDA | La API y el Batch publican; el Adaptador, el Batch y Notificaciones consumen | Acoplamiento temporal con el Core y pico del corte (RNF-03.1 y RF-05.2) |
 | Transactional Outbox | Integración | Tabla outbox en PostgreSQL, en la API y el Batch | Que nunca quede un cambio guardado sin su evento ni un evento publicado de un cambio que no se guardó (RNF-02.3) |
-| Consumidor idempotente | Resiliencia | Todos los consumidores de RabbitMQ, usando el correlation-id | El broker puede entregar un mensaje más de una vez; un duplicado no debe generar un segundo débito ni un segundo asiento |
+| Consumidor idempotente | Resiliencia | Todos los consumidores de RabbitMQ, usando el id del evento | El broker puede entregar un mensaje más de una vez; un duplicado no debe generar un segundo débito ni un segundo asiento |
+| Dead Letter Queue | Resiliencia | Cada cola de RabbitMQ tiene su cola `.dlq` | Un mensaje que falla dos veces no se pierde: queda apartado para revisarlo y reprocesarlo |
 | Ledger de solo inserción | Persistencia | Tabla ledger en PostgreSQL | Auditoría inmutable; el saldo se obtiene sumando movimientos (RNF-03.3) |
 | Idempotency-Key | Resiliencia | POST /v1/planes-ahorro y los POST de /aportes, /retiros, /desbloqueo y /cancelacion | Evita que un reintento del cliente cree un plan duplicado o mueva dinero dos veces |
 
@@ -174,7 +175,7 @@ También distinguimos los dos caminos que llegan al Core, porque no toleran la m
 
 Aplicar el backoff completo en el camino síncrono habría hecho que una sola validación fallida tardara más de 7 segundos, incompatible con el p95 menor a 500 ms (RNF-01.1).
 
-Ambas políticas se componen con los decoradores de Resilience4j en el orden Retry → Circuit Breaker → Logging → adaptador. El Retry va por fuera para que cada intento cuente como una llamada en la ventana del Circuit Breaker; cuando el circuito está abierto, el Retry no reintenta y el fallo se devuelve de inmediato.
+Ambas políticas se componen con decoradores propios (el Circuit Breaker usa la librería opossum) en el orden Retry → Circuit Breaker → Logging → Timeout → adaptador. El Retry va por fuera para que cada intento cuente como una llamada en la ventana del Circuit Breaker; cuando el circuito está abierto, el Retry no reintenta y el fallo se devuelve de inmediato.
 
 ### 4.3 Paginación y filtrado
 
@@ -201,10 +202,10 @@ Los patrones anteriores definen cómo se relacionan los contenedores. Para imple
 | Patrón | Dónde | Decisión de arquitectura que implementa |
 |---|---|---|
 | Adapter | Adaptador Core: puerto CoreBancarioPort con dos implementaciones, CoreLegacyAdapter (habla con el Core) y CoreSimuladoAdapter (respuestas en memoria para pruebas unitarias) | Fachada / Adaptador: si el Core cambia, solo cambia el adaptador (RNF-03.1) |
-| Decorator | Adaptador Core: Retry → Circuit Breaker → Logging envolviendo al adaptador | Circuit Breaker, Retry y Timeout se agregan por composición, sin modificar el adaptador (RNF-03.2) |
+| Decorator | Adaptador Core: Retry → Circuit Breaker → Logging → Timeout envolviendo al adaptador | Circuit Breaker, Retry y Timeout se agregan por composición, sin modificar el adaptador (RNF-03.2) |
 | Strategy | Ahorro Core API: CalculoInteresStrategy (tasa base o con bono por bloqueo) y PoliticaSalidaBloqueoStrategy (con o sin pérdida de intereses al cancelar o desbloquear) | La simulación pública y el plan real usan el mismo cálculo (RF-02.1, RF-01.6, RF-01.7, RF-04.2) |
 | State | Ahorro Core API (ciclo de vida del plan) y Batch Processor (ciclo de vida del débito) | Las transiciones inválidas se traducen en 409 Conflict; la política de cinco intentos queda en un solo lugar (RF-03.1) |
-| Observer | Eventos de dominio de Spring dentro de cada servicio, enviados al broker a través de la outbox | Publicación / suscripción y Transactional Outbox (RNF-03.1, RF-05.2) |
+| Observer | Eventos de dominio de cada servicio, guardados en la outbox y publicados al broker por un relay | Publicación / suscripción y Transactional Outbox (RNF-03.1, RF-05.2) |
 
 *Tabla 7. Patrones de diseño a nivel de código*
 
@@ -225,7 +226,7 @@ La Tabla 8 muestra quién publica y quién consume cada evento. El Batch Process
 
 *Tabla 8. Eventos del sistema*
 
-Para que State y Strategy apliquen también en el Batch, el procedimiento almacenado sp_procesar_debitos_ahorro_programado() se limita a seleccionar los débitos del día. Las transiciones de estado, los reintentos y los cálculos quedan en código Java, donde se pueden cubrir con pruebas unitarias.
+Para que State y Strategy apliquen también en el Batch, el procedimiento almacenado sp_procesar_debitos_ahorro_programado() se limita a seleccionar los débitos del día. Las transiciones de estado, los reintentos y los cálculos quedan en el código del Batch, donde se pueden cubrir con pruebas unitarias.
 
 ### 4.6 Patrones evaluados y descartados
 

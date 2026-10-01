@@ -1,0 +1,92 @@
+# Entorno completo: Kong + 4 procesos del sistema + Core simulado + PostgreSQL y RabbitMQ.
+# El Core simulado usa el MongoDB Atlas del equipo: defina MONGO_URI en backend/.env (no se versiona).
+# Antes de la primera vez:  npm run claves   (genera keys/ y kong/kong.yml)
+# Levantar:                 docker compose up -d --build
+# Entrada única:            http://localhost:8000  (https://localhost:9443 con TLS 1.3)
+
+# La imagen se construye una vez (servicio api) y la reutilizan los demás procesos.
+x-backend: &backend
+  image: billetera-ahorro-backend
+  pull_policy: never
+  restart: unless-stopped
+  env_file: [.env.docker]
+  volumes:
+    - ./keys:/app/keys:ro
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: billetera
+      POSTGRES_PASSWORD: billetera
+      POSTGRES_DB: billetera
+    ports: ["5432:5432"]
+    volumes: [pg-datos:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U billetera"]
+      interval: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    ports: ["5672:5672", "15672:15672"]
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      retries: 20
+
+  core-simulado:
+    <<: *backend
+    command: ["node", "dist/apps/core-simulado.js"]
+    environment:
+      MONGO_URI: ${MONGO_URI:?Defina MONGO_URI (cadena de MongoDB Atlas) en backend/.env}
+      MONGO_DB: ${MONGO_DB:-core_bancario_db}
+    ports: ["4000:4000"]
+
+  auth:
+    <<: *backend
+    command: ["node", "dist/apps/auth.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  api:
+    <<: *backend
+    build: .
+    command: ["node", "dist/apps/api.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      core-simulado: { condition: service_started }
+
+  batch:
+    <<: *backend
+    command: ["node", "dist/apps/batch.js"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      api: { condition: service_started }
+
+  core-adapter:
+    <<: *backend
+    command: ["node", "dist/apps/core-adapter.js"]
+    depends_on:
+      rabbitmq: { condition: service_healthy }
+      core-simulado: { condition: service_started }
+
+  kong:
+    image: kong:3.9
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/kong.yml
+      KONG_PROXY_LISTEN: "0.0.0.0:8000, 0.0.0.0:8443 ssl http2"
+      KONG_SSL_PROTOCOLS: TLSv1.3
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_NGINX_WORKER_PROCESSES: "2"
+    volumes:
+      - ./kong/kong.yml:/kong/kong.yml:ro
+    ports: ["8000:8000", "9443:8443"]
+    depends_on: [api, auth]
+
+volumes:
+  pg-datos:
