@@ -9,7 +9,7 @@ import { useGoalletStore } from "@/lib/store";
 
 export default function AportarPage() {
   const { id } = useParams<{ id: string }>();
-  const goallet = useGoalletStore((s) => s.goallets.find((g) => g.id === id));
+  const goallet = useGoalletStore((s) => s.planes.find((p) => p.id === id));
 
   if (!goallet) {
     return (

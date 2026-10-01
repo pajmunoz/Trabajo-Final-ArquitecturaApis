@@ -13,8 +13,8 @@ graph TB
     4["<div style='font-weight: bold'>Sistema de Ahorro Programado</div><div style='font-size: 70%; margin-top: 0px'>[Software System]</div><div style='font-size: 80%; margin-top:10px'>Permite crear, simular,<br />debitar y consultar planes de<br />ahorro.</div>"]
     style 4 fill:#1168bd,stroke:#0b4884,color:#ffffff
 
-    1-. "<div>Consulta saldo, simula<br />rendimientos y crea/cancela<br />planes</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
-    4-. "<div>Valida cuentas origen y<br />ejecuta débitos (vía<br />adaptador)</div><div style='font-size: 70%'>[SOAP / REST]</div>" .->2
+    1-. "<div>Simula, crea planes, aporta,<br />retira, bloquea y cancela</div><div style='font-size: 70%'>[HTTPS]</div>" .->4
+    4-. "<div>Valida cuentas y ejecuta<br />débitos y créditos (vía<br />adaptador)</div><div style='font-size: 70%'>[SOAP / REST]</div>" .->2
     3-. "<div>Consume eventos de débitos y<br />planes</div><div style='font-size: 70%'>[AMQP]</div>" .->4
 
   end

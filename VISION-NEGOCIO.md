@@ -4,7 +4,7 @@
 
 > **Entregable U1:** *"Documento de objetivos, anatomía y naturaleza de las APIs del sistema"*
 > **Rúbrica:** *Justificación de Negocio y Anatomía* — 4 puntos
-> **Relacionados:** [`TABLERO-IDEACION.md`](./TABLERO-IDEACION.md) · [`ARQUITECTURA.md`](./ARQUITECTURA.md) · [`RESUMEN-MATERIA.md`](./RESUMEN-MATERIA.md)
+> **Relacionados:** [`TABLERO-IDEACION.md`](./TABLERO-IDEACION.md) · [`FASE-2-ARQUITECTURA.md`](./FASE-2-ARQUITECTURA.md) · [`contracts/openapi.yaml`](./contracts/openapi.yaml) · [`RESUMEN-MATERIA.md`](./RESUMEN-MATERIA.md)
 
 **Supuestos del equipo, no datos verificados:** el producto lo lanza un banco ya establecido en Ecuador (existen core bancario y notificaciones), la moneda es USD, y el segmento objetivo son adultos jóvenes que ya tienen cuenta pero no tienen hábito de ahorro. Las cifras de §5 son ilustrativas. Las afirmaciones de mercado de §1 están planteadas en términos cualitativos a propósito: antes de entregar hay que respaldarlas con fuentes citables (BCE, Superintendencia de Bancos, Global Findex), porque un dato sin fuente resta más de lo que suma.
 
@@ -38,7 +38,8 @@ Billetera de Ahorro permite fijar una meta, elegir cuánto y cuándo aportar, y 
 - Notificaciones del sistema: débitos, cambios en el plan, fechas.
 - Visualización del progreso de la meta: barra de avance y porcentaje de cumplimiento.
 - Reportes con el historial de planes y los movimientos de cada uno.
-- Cancelar el plan en cualquier momento y recuperar los fondos; si estaba bloqueado, pierde los intereses devengados.
+- Retirar parte del saldo cuando el plan no está bloqueado.
+- Desbloquear el plan antes de tiempo o cancelarlo y recuperar los fondos; si estaba bloqueado, en ambos casos pierde los intereses devengados.
 
 **Beneficios para el banco.** Captación inmediata de depósitos; asegura el dinero en ahorro por más tiempo; provee educación bancaria al usuario; ayuda a disminuir las objeciones; barrera de entrada baja para captar un segmento joven; permite levantar datos de dónde se detienen los usuarios al generar el plan; y usa la barra de progreso para sostener la constancia sin costo de canal.
 
@@ -120,16 +121,16 @@ Las 8 capas de U1 §1.3 aplicadas a esta API:
 
 | # | Capa | En Billetera de Ahorro |
 |---|---|---|
-| 1 | **Endpoints** | `/v1/planes-ahorro` · `/v1/simulaciones` · `/v1/tarifas` · `/v1/planes-ahorro/{id}/movimientos` · `/v1/notificaciones` · `/webhooks/core-bancario/debitos` |
-| 2 | **Métodos** | `GET` consultar · `POST` crear, simular, bloquear, cancelar · `PATCH` cambiar fecha de débito. **Sin `DELETE`**: un plan se cancela como cambio de estado; el historial financiero no se borra |
-| 3 | **Recursos** | `PlanAhorro`, `Cuota`, `Movimiento`, `Tarifa`, `Notificacion`, `CuentaDebito`, `CorridaCobro` |
-| 4 | **Parámetros** | *Path:* `{planId}` · *Query:* `?estado=`, `?cursor=`, `?limite=` · *Headers:* `Authorization`, `Idempotency-Key`, `X-Request-Id` · *Body:* JSON validado contra el esquema |
+| 1 | **Endpoints** | `/v1/auth/token` · `/v1/tarifas` · `/v1/simulaciones` · `/v1/cuentas-debito` · `/v1/planes-ahorro` · `/v1/clientes/me` · `/v1/planes-ahorro/{planId}` y sus sub-recursos `/bloqueo`, `/desbloqueo`, `/cancelacion`, `/aportes`, `/retiros`, `/cuotas`, `/movimientos` · `/v1/corridas-cobro`. Las notificaciones no tienen endpoint: las envía el sistema de notificaciones existente al consumir eventos |
+| 2 | **Métodos** | `GET` consultar y simular (sin efectos secundarios, cacheable) · `POST` crear, bloquear, desbloquear, cancelar, aportar, retirar · `PATCH` cambiar datos descriptivos o fecha de débito. **Sin `DELETE`**: un plan se cancela como cambio de estado; el historial financiero no se borra |
+| 3 | **Recursos** | `Cliente`, `PlanAhorro`, `Simulacion`, `Tarifa`, `Cuota`, `Aporte`, `Retiro`, `Movimiento`, `CuentaDebito`, `CorridaCobro` |
+| 4 | **Parámetros** | *Path:* `{planId}` · *Query:* `?estado=`, `?pagina=`, `?cursor=`, `?limite=` · *Headers:* `Authorization`, `Idempotency-Key`, `If-Match`, `X-Request-Id` · *Body:* JSON validado contra el esquema |
 | 5 | **Formato** | JSON. Montos como entero de centavos + ISO 4217. Fechas ISO 8601 UTC. Errores en `application/problem+json` |
-| 6 | **Códigos de estado** | `200` · `201`+`Location` · `202` (cobro aceptado, asíncrono) · `400` · `401` · `403` · `404` · `409` (conflicto de estado) · `429`+`Retry-After` · `500` |
-| 7 | **Autenticación / Autorización** | Servicio de autenticación interno que emite JWT (RS256) de corta duración + refresh token; roles y permisos en los claims; RBAC (`CLIENTE`, `OPERADOR`, `AUDITOR`); ABAC para titularidad del plan |
+| 6 | **Códigos de estado** | `200` · `201`+`Location` · `202` (cobro aceptado, asíncrono) · `400` · `401` · `403` · `404` · `409` (conflicto de estado) · `412` (versión desactualizada) · `429`+`Retry-After` · `500` · `503` (Core no disponible) |
+| 7 | **Autenticación / Autorización** | Servicio de autenticación interno que emite JWT (RS256) de corta duración + refresh token; roles y permisos en los claims; RBAC (`CLIENTE`, `OPERADOR`, `AUDITOR`) con scopes por recurso (`perfil:leer`, `planes:leer`, `planes:escribir`, `aportes:escribir`, `retiros:escribir`, `movimientos:leer`, `cuentas:leer`, `corridas:leer`); ABAC para titularidad del plan |
 | 8 | **Documentación** | `contracts/openapi.yaml` (OpenAPI 3.1) como única fuente de verdad, publicado con Swagger UI |
 
-Un ejemplo del viaje completo: el cliente envía `POST /v1/planes-ahorro` **(1)** con verbo de creación **(2)**, el cuerpo con meta, plazo y cuota **(3)**, header `Authorization: Bearer <JWT>` que el gateway valida **(7)** e `Idempotency-Key` para que un reintento de red no cree dos planes. El servicio congela la tarifa, genera el calendario de cuotas y asienta el movimiento inicial en el ledger. Responde `201 Created` **(6)** con `Location` y un JSON **(5)** que incluye el estado del plan y la proyección del monto final.
+Un ejemplo del viaje completo: el cliente envía `POST /v1/planes-ahorro` **(1)** con verbo de creación **(2)**, el cuerpo con meta, fecha objetivo, día de débito y cuenta **(3)**, header `Authorization: Bearer <JWT>` que el gateway valida **(7)** e `Idempotency-Key` para que un reintento de red no cree dos planes. El servicio valida la cuenta con el Core, deriva el plazo de la fecha objetivo, calcula la cuota, congela la tarifa y genera el calendario de cuotas. Responde `201 Created` **(6)** con `Location` y un JSON **(5)** que incluye el estado del plan y la proyección del monto final.
 
 ---
 
@@ -167,12 +168,13 @@ Sobre el ciclo de vida (U1 §1.8): hoy estamos en **diseño**, estableciendo el 
 |---|---|
 | **El plazo se estira sin tope** si el cliente falla cuotas repetidamente, y la meta se aleja | Notificar cada prórroga con la nueva fecha estimada y sugerir bajar la cuota antes que abandonar el plan |
 | **Cuotas elegidas por optimismo** que el cliente no logra sostener | La simulación muestra la proyección exacta antes de comprometerse, y la fecha de débito elegible permite alinear el cargo con el día de cobro |
+| **Los retiros parciales reducen la permanencia**, que es de donde sale el margen (§5) | Un plan bloqueado no admite retiros, y salir del bloqueo cuesta los intereses devengados: el incentivo a mantener el dinero está en el bloqueo, no en prohibir el retiro |
 | **Sin monto mínimo, una cuota muy pequeña cuesta más cobrarla que lo que capta** | Aceptado para el alcance del proyecto porque refuerza la barrera de entrada cero; un producto real necesitaría un piso operativo |
 
 ---
 
 ## 11. Qué queda por decidir
 
-1. ¿Un error técnico del banco (timeout, servicio caído) debe consumir uno de los 5 intentos? ¿Y cuándo se suspende un plan cuyo plazo se estira indefinidamente?
+1. ¿Cuándo se suspende un plan cuyo plazo se estira indefinidamente? *(La otra mitad de esta pregunta quedó resuelta en la Fase 2, §4.2: un error técnico del banco no consume ninguno de los 5 intentos.)*
 2. Reemplazar las cifras ilustrativas de §5 por tasas reales o un rango citado.
 3. Respaldar las afirmaciones de mercado de §1 con fuentes citables.

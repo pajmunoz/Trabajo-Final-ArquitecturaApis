@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -8,52 +8,67 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { useGoalletStore } from "@/lib/store";
 import { iconosDisponibles } from "@/lib/mock-data";
+import { hoyISO, simular, sumarMeses } from "@/lib/finance";
+import { cuentaEtiqueta, dolaresACentavos, formatCentavos, formatTasa } from "@/lib/format";
+import type { Icono } from "@/lib/types";
+
+const DIAS_DEBITO = Array.from({ length: 28 }, (_, i) => i + 1);
+
+const inputClass =
+  "bg-surface-container-low text-on-surface text-sm rounded-sm px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30";
 
 function NuevoGoalletContent() {
   const router = useRouter();
-  const crearGoallet = useGoalletStore((s) => s.crearGoallet);
+  const crearPlan = useGoalletStore((s) => s.crearPlan);
+  const cuentas = useGoalletStore((s) => s.cuentas);
 
   const [nombre, setNombre] = useState("");
   const [objetivo, setObjetivo] = useState("");
-  const [icono, setIcono] = useState(iconosDisponibles[0]);
+  const [icono, setIcono] = useState<Icono>(iconosDisponibles[0]);
   const [montoMeta, setMontoMeta] = useState("");
-  const [aporteMensual, setAporteMensual] = useState("");
-  const [fechaLimite, setFechaLimite] = useState("");
+  const [fechaObjetivo, setFechaObjetivo] = useState("");
+  const [diaDebito, setDiaDebito] = useState(1);
+  const [cuentaDebitoId, setCuentaDebitoId] = useState(cuentas[0]?.id ?? "");
   const [bloqueado, setBloqueado] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const montoMetaCentavos = dolaresACentavos(Number(montoMeta) || 0);
+  // Equivalente a GET /v1/simulaciones: la cuota la calcula el sistema, no el usuario.
+  const simulacion = useMemo(
+    () => (fechaObjetivo ? simular(montoMetaCentavos, fechaObjetivo, bloqueado) : null),
+    [montoMetaCentavos, fechaObjetivo, bloqueado]
+  );
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const meta = Number(montoMeta);
-    const aporte = Number(aporteMensual);
-
     if (!nombre.trim()) {
-      setError("Ponele un nombre a tu Goallet.");
+      setError("Ponle un nombre a tu Goallet.");
       return;
     }
-    if (!meta || meta <= 0) {
-      setError("Ingresá un monto meta válido.");
+    if (montoMetaCentavos < 1) {
+      setError("Ingresa un monto meta válido.");
       return;
     }
-    if (!aporte || aporte < 10) {
-      setError("El aporte mensual mínimo es de $10.");
-      return;
-    }
-    if (!fechaLimite) {
-      setError("Elegí una fecha límite para tu objetivo.");
+    if (!fechaObjetivo) {
+      setError("Elige la fecha en la que quieres alcanzar tu meta.");
       return;
     }
 
-    const id = crearGoallet({
+    const r = crearPlan({
       nombre: nombre.trim(),
-      objetivo: objetivo.trim() || "Objetivo de ahorro personal",
+      objetivo: objetivo.trim() || undefined,
       icono,
-      montoMeta: meta,
-      aportePeriodicoSugerido: aporte,
-      fechaLimite,
+      montoMetaCentavos,
+      fechaObjetivo,
+      diaDebito,
+      cuentaDebitoId,
       bloqueado,
     });
-    router.push(`/goallets/${id}`);
+    if (!r.ok) {
+      setError(r.mensaje);
+      return;
+    }
+    router.push(`/goallets/${r.valor}`);
   }
 
   return (
@@ -71,7 +86,7 @@ function NuevoGoalletContent() {
               Crear un nuevo Goallet
             </h1>
             <p className="text-sm text-on-surface-variant mt-1">
-              Definí tu objetivo, el monto meta y en cuánto tiempo querés lograrlo.
+              Define tu objetivo, el monto meta y para cuándo lo quieres. Nosotros calculamos el aporte mensual.
             </p>
           </div>
 
@@ -83,10 +98,11 @@ function NuevoGoalletContent() {
               <input
                 id="nombre"
                 type="text"
+                maxLength={60}
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                placeholder="Ej: Viaje a Bariloche"
-                className="bg-surface-container-low text-on-surface text-sm rounded-sm px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="Ej: Viaje familiar"
+                className={inputClass}
               />
             </div>
 
@@ -97,10 +113,11 @@ function NuevoGoalletContent() {
               <input
                 id="objetivo"
                 type="text"
+                maxLength={140}
                 value={objetivo}
                 onChange={(e) => setObjetivo(e.target.value)}
-                placeholder="Ej: Vacaciones familiares en la Patagonia"
-                className="bg-surface-container-low text-on-surface text-sm rounded-sm px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="Ej: Vacaciones familiares de una semana"
+                className={inputClass}
               />
             </div>
 
@@ -133,42 +150,65 @@ function NuevoGoalletContent() {
                 <input
                   id="meta"
                   type="number"
-                  min={10}
+                  min={0.01}
                   step="0.01"
                   value={montoMeta}
                   onChange={(e) => setMontoMeta(e.target.value)}
                   placeholder="1000"
-                  className="bg-surface-container-low text-on-surface text-sm rounded-sm px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30"
+                  className={inputClass}
                 />
               </div>
               <div className="flex flex-col gap-2">
-                <label className="text-sm font-semibold text-on-surface" htmlFor="aporte">
-                  Aporte mensual (USD)
+                <label className="text-sm font-semibold text-on-surface" htmlFor="fecha">
+                  Fecha objetivo
                 </label>
                 <input
-                  id="aporte"
-                  type="number"
-                  min={10}
-                  step="0.01"
-                  value={aporteMensual}
-                  onChange={(e) => setAporteMensual(e.target.value)}
-                  placeholder="Mínimo $10"
-                  className="bg-surface-container-low text-on-surface text-sm rounded-sm px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30"
+                  id="fecha"
+                  type="date"
+                  min={sumarMeses(hoyISO(), 1)}
+                  max={sumarMeses(hoyISO(), 120)}
+                  value={fechaObjetivo}
+                  onChange={(e) => setFechaObjetivo(e.target.value)}
+                  className={inputClass}
                 />
               </div>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-on-surface" htmlFor="fecha">
-                Fecha límite del objetivo
-              </label>
-              <input
-                id="fecha"
-                type="date"
-                value={fechaLimite}
-                onChange={(e) => setFechaLimite(e.target.value)}
-                className="bg-surface-container-low text-on-surface text-sm rounded-sm px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-on-surface" htmlFor="cuenta">
+                  Cuenta de débito
+                </label>
+                <select
+                  id="cuenta"
+                  value={cuentaDebitoId}
+                  onChange={(e) => setCuentaDebitoId(e.target.value)}
+                  className={inputClass}
+                >
+                  {cuentas.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {cuentaEtiqueta(c)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-on-surface" htmlFor="dia">
+                  Día del débito mensual
+                </label>
+                <select
+                  id="dia"
+                  value={diaDebito}
+                  onChange={(e) => setDiaDebito(Number(e.target.value))}
+                  className={inputClass}
+                >
+                  {DIAS_DEBITO.map((d) => (
+                    <option key={d} value={d}>
+                      Día {d} de cada mes
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             <label className="flex items-center gap-3 bg-surface-container-low rounded-sm px-4 py-3 cursor-pointer">
@@ -182,6 +222,25 @@ function NuevoGoalletContent() {
                 Bloquear el ahorro para ganar una tasa preferencial
               </span>
             </label>
+
+            {simulacion && (
+              <div className="flex flex-col gap-2 bg-info-container rounded-sm px-4 py-3">
+                <span className="text-xs font-bold uppercase tracking-wide text-on-info-container">
+                  Tu plan
+                </span>
+                <p className="text-sm text-on-info-container">
+                  Aporte mensual de{" "}
+                  <span className="font-semibold">{formatCentavos(simulacion.cuotaMensualCentavos)}</span>{" "}
+                  durante {simulacion.plazoMeses} {simulacion.plazoMeses === 1 ? "mes" : "meses"}, a{" "}
+                  <span className="font-semibold">{formatTasa(simulacion.tasas.totalAnual)} TNA</span> (
+                  {formatTasa(simulacion.tasas.efectivaAnual)} TEA).
+                </p>
+                <p className="text-xs text-on-info-container">
+                  Aportarás {formatCentavos(simulacion.totalAportadoCentavos)} y ganarás{" "}
+                  {formatCentavos(simulacion.interesesProyectadosCentavos)} en intereses.
+                </p>
+              </div>
+            )}
 
             {error && (
               <p className="text-sm text-error bg-error-container text-on-error-container rounded-sm px-4 py-3">

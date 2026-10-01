@@ -9,7 +9,7 @@ import { useGoalletStore } from "@/lib/store";
 
 export default function RetirarPage() {
   const { id } = useParams<{ id: string }>();
-  const goallet = useGoalletStore((s) => s.goallets.find((g) => g.id === id));
+  const goallet = useGoalletStore((s) => s.planes.find((p) => p.id === id));
 
   if (!goallet) {
     return (
@@ -42,8 +42,9 @@ export default function RetirarPage() {
           </h1>
           {goallet.bloqueado && (
             <p className="text-sm text-on-error-container bg-error-container rounded-sm px-4 py-3">
-              Este Goallet tiene los fondos bloqueados para obtener una tasa preferencial. No se pueden
-              retirar fondos hasta que finalice el período de bloqueo.
+              Este Goallet tiene los fondos bloqueados para obtener una tasa preferencial y no admite
+              retiros. Si necesitas el dinero, primero desbloquéalo desde el detalle del Goallet
+              (pierdes los intereses devengados).
             </p>
           )}
           <MoneyForm goallet={goallet} modo="retirar" />

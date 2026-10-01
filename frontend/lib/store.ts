@@ -1,176 +1,352 @@
+// Store local que imita a la API mientras el front no está conectado. Cada acción
+// corresponde a una operación de contracts/openapi.yaml y aplica sus mismas reglas
+// de negocio y códigos de error, para que el cambio a llamadas HTTP sea directo.
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { goalletsIniciales } from "./mock-data";
-import type { Goallet, NuevoGoalletInput } from "./types";
+import {
+  calcularProgreso,
+  calcularTasas,
+  hoyISO,
+  proximoDebito,
+  simular,
+  tasaEfectiva,
+  tasasSinBloqueo,
+} from "./finance";
+import { cuentasIniciales, movimientosIniciales, planesIniciales } from "./mock-data";
+import type {
+  CrearPlanAhorro,
+  CuentaDebito,
+  Movimiento,
+  PlanAhorro,
+  ResumenPlanes,
+  TipoMovimiento,
+} from "./types";
+import { cuentaEtiqueta } from "./format";
 
-function nuevoId(nombre: string) {
-  const slug = nombre
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "");
-  return `${slug || "goallet"}-${Date.now().toString(36)}`;
+export type Resultado<T = undefined> =
+  | ({ ok: true } & (T extends undefined ? object : { valor: T }))
+  | { ok: false; codigo: string; mensaje: string };
+
+function error(codigo: string, mensaje: string) {
+  return { ok: false as const, codigo, mensaje };
+}
+
+function nuevoId() {
+  return crypto.randomUUID();
+}
+
+function ahora() {
+  return new Date().toISOString();
+}
+
+function sinSaldo(cuenta: CuentaDebito): CuentaDebito {
+  const copia = { ...cuenta };
+  delete copia.saldoDisponibleCentavos;
+  return copia;
+}
+
+/** Asienta un movimiento en el ledger del plan y recalcula los campos derivados. */
+function asentar(
+  plan: PlanAhorro,
+  movimientos: Movimiento[],
+  tipo: TipoMovimiento,
+  montoCentavos: number,
+  descripcion: string,
+  origen: string
+) {
+  const saldoCentavos = plan.saldoCentavos + montoCentavos;
+  const movimiento: Movimiento = {
+    id: nuevoId(),
+    tipo,
+    montoCentavos,
+    moneda: plan.moneda,
+    saldoResultanteCentavos: saldoCentavos,
+    fecha: ahora(),
+    descripcion,
+    origen,
+  };
+  const actualizado: PlanAhorro = {
+    ...plan,
+    saldoCentavos,
+    saldoDisponibleCentavos: saldoCentavos,
+    progreso: calcularProgreso(saldoCentavos, plan.montoMetaCentavos),
+    actualizadoEn: movimiento.fecha,
+  };
+  return { plan: actualizado, movimientos: [movimiento, ...movimientos] };
 }
 
 interface GoalletStore {
-  goallets: Goallet[];
-  getGoallet: (id: string) => Goallet | undefined;
-  crearGoallet: (input: NuevoGoalletInput) => string;
-  aportar: (id: string, monto: number, origen: string) => void;
-  retirar: (id: string, monto: number) => void;
-  toggleBooster: (id: string, boosterId: string) => void;
-  desbloquear: (id: string) => void;
-}
+  planes: PlanAhorro[];
+  movimientos: Record<string, Movimiento[]>;
+  cuentas: CuentaDebito[];
 
-const TASA_BASE_TNA = 4.5;
-const TASA_BASE_TEA = 4.6;
-const BONUS_BLOQUEO_TNA = 1.1;
-const BONUS_BLOQUEO_TEA = 1.15;
+  resumen: () => ResumenPlanes;
+  crearPlan: (input: CrearPlanAhorro) => Resultado<string>;
+  aportar: (planId: string, montoCentavos: number, cuentaOrigenId: string) => Resultado;
+  retirar: (planId: string, montoCentavos: number, cuentaDestinoId: string) => Resultado;
+  bloquear: (planId: string) => Resultado;
+  desbloquear: (planId: string) => Resultado<number>;
+  cancelar: (planId: string, cuentaDestinoId?: string) => Resultado<number>;
+}
 
 export const useGoalletStore = create<GoalletStore>()(
   persist(
-    (set, get) => ({
-      goallets: goalletsIniciales,
+    (set, get) => {
+      function buscarPlan(planId: string) {
+        return get().planes.find((p) => p.id === planId);
+      }
 
-      getGoallet: (id) => get().goallets.find((g) => g.id === id),
+      function buscarCuenta(cuentaId: string) {
+        return get().cuentas.find((c) => c.id === cuentaId);
+      }
 
-      crearGoallet: (input) => {
-        const id = nuevoId(input.nombre);
-        const nuevo: Goallet = {
-          id,
-          nombre: input.nombre,
-          objetivo: input.objetivo,
-          icono: input.icono,
-          montoMeta: input.montoMeta,
-          montoActual: 0,
-          aportePeriodicoSugerido: input.aportePeriodicoSugerido,
-          tasaTNA: input.bloqueado ? TASA_BASE_TNA + BONUS_BLOQUEO_TNA : TASA_BASE_TNA,
-          tasaTEA: input.bloqueado ? TASA_BASE_TEA + BONUS_BLOQUEO_TEA : TASA_BASE_TEA,
-          bloqueado: input.bloqueado,
-          tasaTNASinBloqueo: input.bloqueado ? TASA_BASE_TNA : undefined,
-          tasaTEASinBloqueo: input.bloqueado ? TASA_BASE_TEA : undefined,
-          fechaLimite: input.fechaLimite,
-          creadoEn: new Date().toISOString(),
-          boosters: [
-            {
-              id: "ahorro-mensual",
-              titulo: "Ahorro mensual",
-              descripcion: `Aporta $${input.aportePeriodicoSugerido.toFixed(2)} todos los meses para alcanzar tu meta a tiempo.`,
-              icono: "calendar_today",
-              activo: false,
-              etiqueta: "DISPONIBLE",
-            },
-            ...(input.bloqueado
-              ? [
-                  {
-                    id: "blindaje-tasa",
-                    titulo: "Blinda tu tasa",
-                    descripcion: `Fondos bloqueados con rendimiento extra garantizado de ${(TASA_BASE_TNA + BONUS_BLOQUEO_TNA).toFixed(2)}% TNA.`,
-                    icono: "lock_clock",
-                    activo: true,
-                    etiqueta: "ACTIVO",
-                  },
-                ]
-              : []),
-          ],
-          movimientos: [],
+      function guardar(plan: PlanAhorro, movimientos: Movimiento[], cuentas = get().cuentas) {
+        set((state) => ({
+          planes: state.planes.map((p) => (p.id === plan.id ? plan : p)),
+          movimientos: { ...state.movimientos, [plan.id]: movimientos },
+          cuentas,
+        }));
+      }
+
+      function moverSaldoCuenta(cuentaId: string, deltaCentavos: number) {
+        return get().cuentas.map((c) =>
+          c.id === cuentaId
+            ? { ...c, saldoDisponibleCentavos: (c.saldoDisponibleCentavos ?? 0) + deltaCentavos }
+            : c
+        );
+      }
+
+      /** Si el plan estaba bloqueado, descuenta los intereses devengados (RF-01.7, RF-04.2). */
+      function aplicarSalidaBloqueo(plan: PlanAhorro, movimientos: Movimiento[], motivo: string) {
+        const perdidos = plan.bloqueado ? plan.interesesDevengadosCentavos : 0;
+        let resultado = { plan, movimientos };
+        if (perdidos > 0) {
+          resultado = asentar(plan, movimientos, "PENALIDAD", -perdidos, motivo, "Intereses devengados");
+        }
+        return {
+          plan: {
+            ...resultado.plan,
+            bloqueado: false,
+            bloqueadoDesde: null,
+            tasas: tasasSinBloqueo(plan.tasas),
+            interesesDevengadosCentavos: plan.bloqueado ? 0 : plan.interesesDevengadosCentavos,
+          },
+          movimientos: resultado.movimientos,
+          perdidos,
         };
-        set((state) => ({ goallets: [nuevo, ...state.goallets] }));
-        return id;
-      },
+      }
 
-      aportar: (id, monto, origen) => {
-        set((state) => ({
-          goallets: state.goallets.map((g) => {
-            if (g.id !== id) return g;
-            const saldoResultante = g.montoActual + monto;
-            return {
-              ...g,
-              montoActual: saldoResultante,
-              movimientos: [
-                {
-                  id: `m-${Date.now()}`,
-                  tipo: "aporte",
-                  descripcion: "Aporte manual",
-                  origen,
-                  monto,
-                  fecha: new Date().toISOString(),
-                  saldoResultante,
-                },
-                ...g.movimientos,
-              ],
-            };
-          }),
-        }));
-      },
+      return {
+        planes: planesIniciales,
+        movimientos: movimientosIniciales,
+        cuentas: cuentasIniciales,
 
-      retirar: (id, monto) => {
-        set((state) => ({
-          goallets: state.goallets.map((g) => {
-            if (g.id !== id || g.bloqueado) return g;
-            const saldoResultante = Math.max(0, g.montoActual - monto);
-            return {
-              ...g,
-              montoActual: saldoResultante,
-              movimientos: [
-                {
-                  id: `m-${Date.now()}`,
-                  tipo: "retiro",
-                  descripcion: "Retiro de fondos",
-                  origen: "Cuenta propia",
-                  monto: -monto,
-                  fecha: new Date().toISOString(),
-                  saldoResultante,
-                },
-                ...g.movimientos,
-              ],
-            };
-          }),
-        }));
-      },
+        // GET /v1/planes-ahorro → resumen
+        resumen: () => {
+          const planes = get().planes.filter((p) => p.estado !== "CANCELADO");
+          return {
+            moneda: "USD",
+            totalAhorradoCentavos: planes.reduce((acc, p) => acc + p.saldoCentavos, 0),
+            totalMetaCentavos: planes.reduce((acc, p) => acc + p.montoMetaCentavos, 0),
+            cantidadPlanes: planes.length,
+            planesActivos: planes.filter((p) => p.estado === "ACTIVO").length,
+          };
+        },
 
-      toggleBooster: (id, boosterId) => {
-        set((state) => ({
-          goallets: state.goallets.map((g) => {
-            if (g.id !== id) return g;
-            return {
-              ...g,
-              boosters: g.boosters.map((b) =>
-                b.id === boosterId
-                  ? {
-                      ...b,
-                      activo: !b.activo,
-                      etiqueta: !b.activo ? "ACTIVO" : "DISPONIBLE",
-                    }
-                  : b
-              ),
-            };
-          }),
-        }));
-      },
+        // POST /v1/planes-ahorro
+        crearPlan: (input) => {
+          const cuenta = buscarCuenta(input.cuentaDebitoId);
+          if (!cuenta) return error("VALIDACION", "Elige una cuenta de débito válida.");
+          if (input.diaDebito < 1 || input.diaDebito > 28) {
+            return error("VALIDACION", "El día de débito debe estar entre 1 y 28.");
+          }
+          const simulacion = simular(input.montoMetaCentavos, input.fechaObjetivo, input.bloqueado);
+          if (!simulacion) {
+            return error("VALIDACION", "La fecha objetivo debe estar entre 1 y 120 meses desde hoy.");
+          }
 
-      desbloquear: (id) => {
-        set((state) => ({
-          goallets: state.goallets.map((g) => {
-            if (g.id !== id || !g.bloqueado) return g;
-            return {
-              ...g,
-              bloqueado: false,
-              tasaTNA: g.tasaTNASinBloqueo ?? g.tasaTNA,
-              tasaTEA: g.tasaTEASinBloqueo ?? g.tasaTEA,
-              tasaTNASinBloqueo: undefined,
-              tasaTEASinBloqueo: undefined,
-              boosters: g.boosters.map((b) =>
-                b.id === "blindaje-tasa"
-                  ? { ...b, activo: false, etiqueta: "DISPONIBLE" }
-                  : b
-              ),
-            };
-          }),
-        }));
-      },
-    }),
-    { name: "goallet-storage", skipHydration: true }
+          const hoy = hoyISO();
+          const plan: PlanAhorro = {
+            id: nuevoId(),
+            nombre: input.nombre,
+            objetivo: input.objetivo,
+            icono: input.icono,
+            estado: "ACTIVO",
+            moneda: "USD",
+            montoMetaCentavos: input.montoMetaCentavos,
+            fechaObjetivo: input.fechaObjetivo,
+            cuotaMensualCentavos: simulacion.cuotaMensualCentavos,
+            plazoMeses: simulacion.plazoMeses,
+            prorrogasMeses: 0,
+            diaDebito: input.diaDebito,
+            cuentaDebito: sinSaldo(cuenta),
+            bloqueado: input.bloqueado,
+            bloqueadoDesde: input.bloqueado ? ahora() : null,
+            tasas: simulacion.tasas,
+            saldoCentavos: 0,
+            saldoDisponibleCentavos: 0,
+            interesesDevengadosCentavos: 0,
+            progreso: 0,
+            proximoDebito: proximoDebito(input.diaDebito),
+            fechaInicio: hoy,
+            fechaFinEstimada: input.fechaObjetivo,
+            creadoEn: ahora(),
+            actualizadoEn: ahora(),
+          };
+          set((state) => ({
+            planes: [plan, ...state.planes],
+            movimientos: { ...state.movimientos, [plan.id]: [] },
+          }));
+          return { ok: true, valor: plan.id };
+        },
+
+        // POST /v1/planes-ahorro/{planId}/aportes
+        aportar: (planId, montoCentavos, cuentaOrigenId) => {
+          const plan = buscarPlan(planId);
+          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
+          if (plan.estado !== "ACTIVO") {
+            return error("ESTADO_INVALIDO", "Solo se puede aportar a un Goallet activo.");
+          }
+          if (montoCentavos < 1) return error("VALIDACION", "Ingresa un monto válido.");
+          const cuenta = buscarCuenta(cuentaOrigenId);
+          if (!cuenta) return error("VALIDACION", "Elige una cuenta de origen válida.");
+          if ((cuenta.saldoDisponibleCentavos ?? 0) < montoCentavos) {
+            // En la API esto llega como Aporte FALLIDO con motivoFallo FONDOS_INSUFICIENTES.
+            return error("FONDOS_INSUFICIENTES", "La cuenta de origen no tiene saldo suficiente.");
+          }
+
+          const r = asentar(
+            plan,
+            get().movimientos[planId] ?? [],
+            "APORTE_MANUAL",
+            montoCentavos,
+            "Aporte voluntario",
+            cuentaEtiqueta(cuenta)
+          );
+          const estado = r.plan.saldoCentavos >= plan.montoMetaCentavos ? "COMPLETADO" : "ACTIVO";
+          guardar({ ...r.plan, estado }, r.movimientos, moverSaldoCuenta(cuentaOrigenId, -montoCentavos));
+          return { ok: true };
+        },
+
+        // POST /v1/planes-ahorro/{planId}/retiros
+        retirar: (planId, montoCentavos, cuentaDestinoId) => {
+          const plan = buscarPlan(planId);
+          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
+          if (plan.estado !== "ACTIVO") {
+            return error("ESTADO_INVALIDO", "Solo se puede retirar de un Goallet activo.");
+          }
+          if (plan.bloqueado) {
+            return error(
+              "RETIRO_NO_PERMITIDO",
+              "Este Goallet tiene los fondos bloqueados. Desbloquéalo antes de retirar."
+            );
+          }
+          if (montoCentavos < 1) return error("VALIDACION", "Ingresa un monto válido.");
+          if (montoCentavos > plan.saldoDisponibleCentavos) {
+            return error("SALDO_INSUFICIENTE", "El monto supera el saldo disponible del Goallet.");
+          }
+          const cuenta = buscarCuenta(cuentaDestinoId);
+          if (!cuenta) return error("VALIDACION", "Elige una cuenta de destino válida.");
+
+          const r = asentar(
+            plan,
+            get().movimientos[planId] ?? [],
+            "RETIRO",
+            -montoCentavos,
+            "Retiro de fondos",
+            cuentaEtiqueta(cuenta)
+          );
+          guardar(r.plan, r.movimientos, moverSaldoCuenta(cuentaDestinoId, montoCentavos));
+          return { ok: true };
+        },
+
+        // POST /v1/planes-ahorro/{planId}/bloqueo
+        bloquear: (planId) => {
+          const plan = buscarPlan(planId);
+          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
+          if (plan.estado !== "ACTIVO") {
+            return error("ESTADO_INVALIDO", "Solo se puede bloquear un Goallet activo.");
+          }
+          if (plan.bloqueado) return error("PLAN_YA_BLOQUEADO", "El Goallet ya está bloqueado.");
+
+          const conBono = calcularTasas(plan.plazoMeses, true);
+          const total = Math.round((plan.tasas.baseAnual + conBono.bonoBloqueoAnual) * 100) / 100;
+          guardar(
+            {
+              ...plan,
+              bloqueado: true,
+              bloqueadoDesde: ahora(),
+              tasas: {
+                baseAnual: plan.tasas.baseAnual,
+                bonoBloqueoAnual: conBono.bonoBloqueoAnual,
+                totalAnual: total,
+                efectivaAnual: tasaEfectiva(total),
+              },
+              actualizadoEn: ahora(),
+            },
+            get().movimientos[planId] ?? []
+          );
+          return { ok: true };
+        },
+
+        // POST /v1/planes-ahorro/{planId}/desbloqueo
+        desbloquear: (planId) => {
+          const plan = buscarPlan(planId);
+          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
+          if (plan.estado !== "ACTIVO") {
+            return error("ESTADO_INVALIDO", "Solo se puede desbloquear un Goallet activo.");
+          }
+          if (!plan.bloqueado) return error("PLAN_NO_BLOQUEADO", "El Goallet no está bloqueado.");
+
+          const r = aplicarSalidaBloqueo(
+            plan,
+            get().movimientos[planId] ?? [],
+            "Intereses perdidos por desbloqueo"
+          );
+          guardar(r.plan, r.movimientos);
+          return { ok: true, valor: r.perdidos };
+        },
+
+        // POST /v1/planes-ahorro/{planId}/cancelacion
+        cancelar: (planId, cuentaDestinoId) => {
+          const plan = buscarPlan(planId);
+          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
+          if (plan.estado !== "ACTIVO") {
+            return error("ESTADO_INVALIDO", "Solo se puede cancelar un Goallet activo.");
+          }
+          const cuenta = buscarCuenta(cuentaDestinoId ?? plan.cuentaDebito.id);
+          if (!cuenta) return error("VALIDACION", "Elige una cuenta de destino válida.");
+
+          const salida = aplicarSalidaBloqueo(
+            plan,
+            get().movimientos[planId] ?? [],
+            "Intereses perdidos por cancelación"
+          );
+          const devuelto = salida.plan.saldoCentavos;
+          let r: { plan: PlanAhorro; movimientos: Movimiento[] } = {
+            plan: salida.plan,
+            movimientos: salida.movimientos,
+          };
+          if (devuelto > 0) {
+            r = asentar(
+              salida.plan,
+              salida.movimientos,
+              "DEVOLUCION",
+              -devuelto,
+              "Devolución por cancelación",
+              cuentaEtiqueta(cuenta)
+            );
+          }
+          guardar(
+            { ...r.plan, estado: "CANCELADO", proximoDebito: null },
+            r.movimientos,
+            moverSaldoCuenta(cuenta.id, devuelto)
+          );
+          return { ok: true, valor: devuelto };
+        },
+      };
+    },
+    // Clave nueva: los datos guardados con la forma anterior (montos en dólares) no son compatibles.
+    { name: "goallet-storage-v2", skipHydration: true }
   )
 );

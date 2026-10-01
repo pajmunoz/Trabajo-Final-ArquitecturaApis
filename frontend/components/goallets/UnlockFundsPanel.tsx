@@ -1,16 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import type { Goallet } from "@/lib/types";
+import type { PlanAhorro } from "@/lib/types";
 import { useGoalletStore } from "@/lib/store";
+import { formatCentavos, formatTasa } from "@/lib/format";
 
-export function UnlockFundsPanel({ goallet }: { goallet: Goallet }) {
+/** POST /v1/planes-ahorro/{planId}/desbloqueo */
+export function UnlockFundsPanel({ goallet }: { goallet: PlanAhorro }) {
   const desbloquear = useGoalletStore((s) => s.desbloquear);
   const [confirmando, setConfirmando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const tasaActualTNA = goallet.tasaTNA;
-  const tasaFinalTNA = goallet.tasaTNASinBloqueo ?? goallet.tasaTNA;
-  const perdidaTNA = tasaActualTNA - tasaFinalTNA;
+  const tasaActual = goallet.tasas.totalAnual;
+  const tasaFinal = goallet.tasas.baseAnual;
+  const perdida = goallet.interesesDevengadosCentavos;
+
+  function confirmar() {
+    const r = desbloquear(goallet.id);
+    if (!r.ok) {
+      setError(r.mensaje);
+      return;
+    }
+    setConfirmando(false);
+  }
 
   return (
     <div className="bg-surface-container-lowest rounded-lg p-6 shadow-sm flex flex-col gap-4 border border-secondary-container">
@@ -22,8 +34,9 @@ export function UnlockFundsPanel({ goallet }: { goallet: Goallet }) {
           <h2 className="font-headline text-headline-sm text-on-surface">Fondos bloqueados</h2>
           <p className="text-sm text-on-surface-variant">
             Este Goallet tiene una tasa preferencial de{" "}
-            <span className="font-semibold text-on-surface">{tasaActualTNA.toFixed(2)}% TNA</span> por
-            mantener el ahorro bloqueado. Podés desbloquearlo en cualquier momento para retirar fondos.
+            <span className="font-semibold text-on-surface">{formatTasa(tasaActual)} TNA</span> por
+            mantener el ahorro bloqueado. Mientras esté bloqueado no admite retiros. Puedes
+            desbloquearlo en cualquier momento.
           </p>
         </div>
       </div>
@@ -42,25 +55,24 @@ export function UnlockFundsPanel({ goallet }: { goallet: Goallet }) {
           <div className="flex items-start gap-2.5">
             <span className="material-symbols-outlined text-error text-[20px]">warning</span>
             <p className="text-sm text-on-error-container">
-              Si desbloqueás este Goallet vas a perder la tasa preferencial. Tu tasa bajará de{" "}
-              <span className="font-semibold">{tasaActualTNA.toFixed(2)}% TNA</span> a{" "}
-              <span className="font-semibold">{tasaFinalTNA.toFixed(2)}% TNA</span>
-              {perdidaTNA > 0 && (
+              Si desbloqueas este Goallet perderás la tasa preferencial: bajará de{" "}
+              <span className="font-semibold">{formatTasa(tasaActual)} TNA</span> a{" "}
+              <span className="font-semibold">{formatTasa(tasaFinal)} TNA</span>.
+              {perdida > 0 ? (
                 <>
                   {" "}
-                  (−{perdidaTNA.toFixed(2)} puntos de interés adicional).
+                  Además se descuentan los intereses devengados:{" "}
+                  <span className="font-semibold">{formatCentavos(perdida)}</span>.
                 </>
-              )}{" "}
-              Esta acción no se puede deshacer.
+              ) : null}{" "}
+              Después puedes volver a bloquearlo, pero los intereses perdidos no se recuperan.
             </p>
           </div>
+          {error && <p className="text-sm text-on-error-container">{error}</p>}
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => {
-                desbloquear(goallet.id);
-                setConfirmando(false);
-              }}
+              onClick={confirmar}
               className="inline-flex items-center gap-2 bg-error text-white text-sm font-semibold px-4 py-2.5 rounded-sm hover:bg-error/90 transition-colors"
             >
               Confirmar desbloqueo
@@ -70,7 +82,7 @@ export function UnlockFundsPanel({ goallet }: { goallet: Goallet }) {
               onClick={() => setConfirmando(false)}
               className="text-sm font-medium text-on-surface-variant hover:text-on-surface px-4 py-2.5"
             >
-              Cancelar
+              Volver
             </button>
           </div>
         </div>

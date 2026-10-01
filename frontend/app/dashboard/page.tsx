@@ -9,17 +9,19 @@ import { AccountCard } from "@/components/dashboard/AccountCard";
 import { GoalletCard } from "@/components/goallets/GoalletCard";
 import { useAuthStore } from "@/lib/auth-store";
 import { useGoalletStore } from "@/lib/store";
-import { formatMoney } from "@/lib/format";
+import { tarjetasMock } from "@/lib/mock-data";
+import { formatCentavos } from "@/lib/format";
 
 function DashboardContent() {
   const usuario = useAuthStore((s) => s.usuario);
-  const goallets = useGoalletStore((s) => s.goallets);
+  const planes = useGoalletStore((s) => s.planes);
+  const cuentas = useGoalletStore((s) => s.cuentas);
+  const resumen = useGoalletStore((s) => s.resumen)();
 
   if (!usuario) return null;
 
-  const totalCuentas = usuario.cuentas.reduce((acc, c) => acc + c.saldo, 0);
-  const totalAhorrado = goallets.reduce((acc, g) => acc + g.montoActual, 0);
-  const goalletsDestacados = goallets.slice(0, 3);
+  const totalCuentas = cuentas.reduce((acc, c) => acc + (c.saldoDisponibleCentavos ?? 0), 0);
+  const goalletsDestacados = planes.filter((p) => p.estado === "ACTIVO").slice(0, 3);
 
   return (
     <main className="flex-1 w-full">
@@ -39,7 +41,7 @@ function DashboardContent() {
               Saldo total en cuentas (USD)
             </span>
             <span className="font-headline text-currency text-on-surface">
-              {formatMoney(totalCuentas)}
+              {formatCentavos(totalCuentas)}
             </span>
           </div>
           <div className="bg-surface-container-lowest rounded-lg p-6 shadow-sm flex flex-col gap-1">
@@ -47,20 +49,20 @@ function DashboardContent() {
               Total ahorrado en Goallets
             </span>
             <span className="font-headline text-currency text-on-surface">
-              {formatMoney(totalAhorrado)}
+              {formatCentavos(resumen.totalAhorradoCentavos)}
             </span>
           </div>
         </div>
 
         <section className="flex flex-col gap-3">
           <h2 className="font-headline text-headline-sm text-on-surface">Mis tarjetas de crédito</h2>
-          <CreditCardCarousel tarjetas={usuario.tarjetas} />
+          <CreditCardCarousel tarjetas={tarjetasMock} />
         </section>
 
         <section className="flex flex-col gap-3">
           <h2 className="font-headline text-headline-sm text-on-surface">Cuentas activas</h2>
           <div className="flex flex-col gap-3">
-            {usuario.cuentas.map((cuenta) => (
+            {cuentas.map((cuenta) => (
               <AccountCard key={cuenta.id} cuenta={cuenta} />
             ))}
           </div>
@@ -81,7 +83,7 @@ function DashboardContent() {
           {goalletsDestacados.length === 0 ? (
             <div className="bg-surface-container-lowest rounded-lg p-8 shadow-sm text-center flex flex-col items-center gap-3">
               <span className="material-symbols-outlined text-[36px] text-primary">savings</span>
-              <p className="text-on-surface-variant">Todavía no creaste ningún Goallet.</p>
+              <p className="text-on-surface-variant">Todavía no has creado ningún Goallet.</p>
               <Link
                 href="/goallets/new"
                 className="inline-flex items-center gap-2 bg-primary text-on-primary text-sm font-semibold px-5 py-2.5 rounded-sm hover:bg-primary-dark transition-colors"

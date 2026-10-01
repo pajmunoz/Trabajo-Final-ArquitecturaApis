@@ -1,20 +1,26 @@
-import type { Movimiento } from "@/lib/types";
-import { formatDateTime, formatMoney } from "@/lib/format";
+import type { Movimiento, TipoMovimiento } from "@/lib/types";
+import { formatCentavos, formatDateTime } from "@/lib/format";
 
-const ICONS: Record<Movimiento["tipo"], string> = {
-  aporte: "add",
-  retiro: "arrow_downward",
-  rendimiento: "percent",
+const ICONS: Record<TipoMovimiento, string> = {
+  APORTE_AUTOMATICO: "event_repeat",
+  APORTE_MANUAL: "add",
+  INTERES: "percent",
+  RETIRO: "arrow_downward",
+  PENALIDAD: "remove_circle",
+  DEVOLUCION: "undo",
 };
 
-const LABELS: Record<Movimiento["tipo"], string> = {
-  aporte: "Aporte",
-  retiro: "Retiro",
-  rendimiento: "Rendimiento",
+const LABELS: Record<TipoMovimiento, string> = {
+  APORTE_AUTOMATICO: "Aporte",
+  APORTE_MANUAL: "Aporte",
+  INTERES: "Rendimiento",
+  RETIRO: "Retiro",
+  PENALIDAD: "Penalidad",
+  DEVOLUCION: "Devolución",
 };
 
 export function TransactionRow({ movimiento }: { movimiento: Movimiento }) {
-  const positivo = movimiento.monto >= 0;
+  const positivo = movimiento.montoCentavos >= 0;
   return (
     <div className="flex items-center justify-between p-3 rounded-sm hover:bg-surface-container-low/70 transition-colors">
       <div className="flex items-center gap-3">
@@ -28,14 +34,15 @@ export function TransactionRow({ movimiento }: { movimiento: Movimiento }) {
         <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <span className="font-headline text-headline-sm text-on-surface">
-              {movimiento.descripcion}
+              {movimiento.descripcion ?? LABELS[movimiento.tipo]}
             </span>
             <span className="text-[10px] font-bold uppercase tracking-wide text-on-surface-variant bg-surface-container px-2 py-0.5 rounded-full">
               {LABELS[movimiento.tipo]}
             </span>
           </div>
           <span className="text-xs text-on-surface-variant">
-            {formatDateTime(movimiento.fecha)} · {movimiento.origen}
+            {formatDateTime(movimiento.fecha)}
+            {movimiento.origen ? ` · ${movimiento.origen}` : ""}
           </span>
         </div>
       </div>
@@ -45,10 +52,11 @@ export function TransactionRow({ movimiento }: { movimiento: Movimiento }) {
             positivo ? "text-primary" : "text-error"
           }`}
         >
-          {positivo ? "+" : "-"}{formatMoney(Math.abs(movimiento.monto))}
+          {positivo ? "+" : "-"}
+          {formatCentavos(Math.abs(movimiento.montoCentavos))}
         </span>
         <span className="block text-[10px] uppercase tracking-wide text-on-surface-variant">
-          Saldo {formatMoney(movimiento.saldoResultante)}
+          Saldo {formatCentavos(movimiento.saldoResultanteCentavos)}
         </span>
       </div>
     </div>

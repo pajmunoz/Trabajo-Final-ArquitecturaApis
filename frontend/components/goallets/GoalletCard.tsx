@@ -1,15 +1,23 @@
 import Link from "next/link";
-import type { Goallet } from "@/lib/types";
-import { formatMoney } from "@/lib/format";
+import type { PlanAhorro } from "@/lib/types";
+import { formatCentavos, formatTasa } from "@/lib/format";
 import { ProgressBar } from "./ProgressBar";
 
-export function GoalletCard({ goallet }: { goallet: Goallet }) {
-  const percent = (goallet.montoActual / goallet.montoMeta) * 100;
+const ESTADO_ETIQUETA: Record<PlanAhorro["estado"], string | null> = {
+  ACTIVO: null,
+  COMPLETADO: "Completado",
+  CANCELADO: "Cancelado",
+};
+
+export function GoalletCard({ goallet }: { goallet: PlanAhorro }) {
+  const estado = ESTADO_ETIQUETA[goallet.estado];
 
   return (
     <Link
       href={`/goallets/${goallet.id}`}
-      className="block bg-surface-container-lowest rounded-md p-5 shadow-sm hover:shadow-md transition-shadow"
+      className={`block bg-surface-container-lowest rounded-md p-5 shadow-sm hover:shadow-md transition-shadow ${
+        goallet.estado === "CANCELADO" ? "opacity-60" : ""
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -18,30 +26,32 @@ export function GoalletCard({ goallet }: { goallet: Goallet }) {
           </div>
           <div>
             <h3 className="font-headline text-headline-sm text-on-surface">{goallet.nombre}</h3>
-            <p className="text-xs text-on-surface-variant line-clamp-1">{goallet.objetivo}</p>
+            {goallet.objetivo && (
+              <p className="text-xs text-on-surface-variant line-clamp-1">{goallet.objetivo}</p>
+            )}
           </div>
         </div>
-        {goallet.bloqueado && (
+        {(estado || goallet.bloqueado) && (
           <span className="text-[10px] font-bold uppercase tracking-wide text-on-secondary-container bg-secondary-container px-2 py-1 rounded-full shrink-0">
-            Bloqueado
+            {estado ?? "Bloqueado"}
           </span>
         )}
       </div>
 
       <div className="mt-4 flex items-baseline gap-1">
         <span className="font-headline text-currency text-on-surface">
-          {formatMoney(goallet.montoActual)}
+          {formatCentavos(goallet.saldoCentavos)}
         </span>
         <span className="text-sm text-on-surface-variant">
-          de {formatMoney(goallet.montoMeta)}
+          de {formatCentavos(goallet.montoMetaCentavos)}
         </span>
       </div>
 
       <div className="mt-3 flex flex-col gap-1.5">
-        <ProgressBar percent={percent} />
+        <ProgressBar percent={goallet.progreso} />
         <div className="flex items-center justify-between text-[11px] text-on-surface-variant">
-          <span className="font-bold text-primary">{percent.toFixed(0)}% completado</span>
-          <span>TNA {goallet.tasaTNA.toFixed(2)}%</span>
+          <span className="font-bold text-primary">{goallet.progreso.toFixed(0)}% completado</span>
+          <span>TNA {formatTasa(goallet.tasas.totalAnual)}</span>
         </div>
       </div>
     </Link>

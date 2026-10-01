@@ -14,7 +14,7 @@ export function CreditCardCarousel({ tarjetas }: { tarjetas: TarjetaCredito[] })
   if (tarjetas.length === 0) {
     return (
       <p className="text-sm text-on-surface-variant">
-        Todavía no tenés tarjetas de crédito asociadas.
+        Todavía no tienes tarjetas de crédito asociadas.
       </p>
     );
   }

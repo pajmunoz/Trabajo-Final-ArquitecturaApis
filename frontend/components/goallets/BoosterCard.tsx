@@ -1,13 +1,27 @@
 "use client";
 
-import type { Booster } from "@/lib/types";
+/**
+ * Los "potenciadores" no son un recurso de la API: se derivan de los campos del plan
+ * (débito automático → cuota y día de débito; blindaje → bloqueado y tasas).
+ */
+export interface Booster {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  icono: string;
+  activo: boolean;
+  etiqueta: string;
+}
 
 export function BoosterCard({
   booster,
   onToggle,
+  ayuda,
 }: {
   booster: Booster;
-  onToggle: () => void;
+  /** Sin `onToggle` el interruptor solo informa el estado. */
+  onToggle?: () => void;
+  ayuda?: string;
 }) {
   return (
     <div className="bg-surface-container-lowest rounded-md p-4 shadow-sm flex flex-col justify-between gap-3">
@@ -18,12 +32,14 @@ export function BoosterCard({
           </span>
           <button
             aria-checked={booster.activo}
+            aria-label={booster.titulo}
             role="switch"
             type="button"
             onClick={onToggle}
-            className={`w-10 h-6 rounded-full relative p-0.5 transition-colors focus:outline-none ${
+            disabled={!onToggle}
+            className={`w-10 h-6 rounded-full relative p-0.5 transition-colors focus:outline-none disabled:cursor-default ${
               booster.activo ? "bg-primary" : "bg-outline-variant"
-            }`}
+            } ${onToggle ? "" : "opacity-70"}`}
           >
             <span
               className={`block w-5 h-5 bg-white rounded-full shadow transition-transform ${
@@ -35,7 +51,7 @@ export function BoosterCard({
         <h3 className="font-headline text-headline-sm text-on-surface pt-1">{booster.titulo}</h3>
         <p className="text-sm text-on-surface-variant">{booster.descripcion}</p>
       </div>
-      <div className="flex items-center justify-between pt-2">
+      <div className="flex flex-col gap-1 pt-2">
         <span
           className={`inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wide ${
             booster.activo ? "text-primary" : "text-on-surface-variant"
@@ -46,6 +62,7 @@ export function BoosterCard({
           />
           {booster.etiqueta}
         </span>
+        {ayuda && <span className="text-[11px] text-on-surface-variant">{ayuda}</span>}
       </div>
     </div>
   );

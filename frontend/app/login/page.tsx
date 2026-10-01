@@ -10,7 +10,7 @@ export default function LoginPage() {
   const usuario = useAuthStore((s) => s.usuario);
   const hasHydrated = useAuthStore((s) => s.hasHydrated);
 
-  const [email, setEmail] = useState("pablo.jara@galicia.com.ar");
+  const [email, setEmail] = useState("pablo.jara@email.com");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -40,7 +40,7 @@ export default function LoginPage() {
           </span>
           <div>
             <h1 className="font-headline text-headline-lg text-on-surface tracking-tight">
-              Ingresá a Goallet
+              Ingresa a Goallet
             </h1>
             <p className="text-sm text-on-surface-variant mt-1">
               Tu banca digital y tus metas de ahorro, en un solo lugar.
@@ -98,7 +98,7 @@ export default function LoginPage() {
           <div className="flex items-center gap-2.5 bg-info-container px-4 py-3 rounded-sm">
             <span className="material-symbols-outlined text-on-info-container text-[20px]">info</span>
             <p className="text-xs text-on-info-container">
-              Demo: <span className="font-semibold">pablo.jara@galicia.com.ar</span> / contraseña{" "}
+              Demo: <span className="font-semibold">pablo.jara@email.com</span> / contraseña{" "}
               <span className="font-semibold">goallet123</span>
             </p>
           </div>

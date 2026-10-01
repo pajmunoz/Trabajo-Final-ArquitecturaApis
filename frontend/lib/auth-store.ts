@@ -1,13 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { usuariosMock } from "./mock-data";
-import type { Usuario } from "./types";
+import { credencialesMock } from "./mock-data";
+import type { Cliente } from "./types";
 
+// Imita POST /v1/auth/token (grantType password) + GET /v1/clientes/me.
+// Con la API real, aquí se guardarían el access token y el refresh token.
 interface AuthStore {
-  usuario: Usuario | null;
+  usuario: Cliente | null;
   hasHydrated: boolean;
   setHasHydrated: (value: boolean) => void;
-  login: (email: string, password: string) => boolean;
+  login: (email: string, contrasena: string) => boolean;
   logout: () => void;
 }
 
@@ -19,19 +21,20 @@ export const useAuthStore = create<AuthStore>()(
 
       setHasHydrated: (value) => set({ hasHydrated: value }),
 
-      login: (email, password) => {
-        const encontrado = usuariosMock.find(
-          (u) =>
-            u.email.toLowerCase() === email.trim().toLowerCase() &&
-            u.password === password
+      login: (email, contrasena) => {
+        const encontrado = credencialesMock.find(
+          (c) =>
+            c.cliente.email.toLowerCase() === email.trim().toLowerCase() &&
+            c.contrasena === contrasena
         );
         if (!encontrado) return false;
-        set({ usuario: encontrado });
+        set({ usuario: encontrado.cliente });
         return true;
       },
 
       logout: () => set({ usuario: null }),
     }),
-    { name: "goallet-auth", skipHydration: true }
+    // Clave nueva: el usuario guardado antes incluía cuentas, tarjetas y contraseña.
+    { name: "goallet-auth-v2", skipHydration: true, partialize: (s) => ({ usuario: s.usuario }) }
   )
 );

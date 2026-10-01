@@ -1,0 +1,1846 @@
+openapi: 3.1.0
+
+info:
+  title: Billetera de Ahorro API
+  version: 1.0.0
+  summary: Planes de ahorro (Goallets) con débito automático, simulación pública y bloqueo por mejor tasa.
+  description: |
+    Contrato de la API de la Billetera de Ahorro (Fase 3, RA3). Es la única fuente de verdad entre
+    el frontend y el backend: se escribió antes que el código (contract-first).
+
+    ## Convenciones
+
+    - **Rutas:** sustantivos en plural, prefijo de versión mayor (`/v1`). Las acciones que no son CRUD
+      se modelan como sub-recursos (`/bloqueo`, `/desbloqueo`, `/cancelacion`, `/aportes`, `/retiros`). No hay `DELETE`: un plan
+      se cancela como cambio de estado y el historial financiero nunca se borra.
+    - **Montos:** enteros en centavos (`*Centavos`) acompañados del código de moneda ISO 4217
+      (`moneda`). Nunca se usan decimales para dinero.
+    - **Tasas:** porcentaje anual como número (`4.5` = 4,5 %).
+    - **Fechas:** ISO 8601. Instantes en UTC (`date-time`); fechas de calendario como `date`.
+    - **Identificadores:** UUID.
+    - **Errores:** `application/problem+json` (RFC 9457) con un `codigo` estable para el consumidor.
+    - **Paginación:** por offset (`pagina`, `limite`) en colecciones pequeñas y navegables (planes,
+      cuotas, corridas); por cursor (`cursor`, `limite`) en colecciones que crecen sin límite
+      (movimientos).
+    - **Trazabilidad:** toda respuesta devuelve `X-Request-Id`; si el cliente lo envía, se respeta.
+
+    ## Seguridad
+
+    El Servicio de Autenticación emite un access token JWT firmado con RS256 (15 minutos) y un
+    refresh token. El API Gateway valida firma y expiración con la clave pública. Los permisos viajan
+    en el claim `scope` y cada operación declara los que exige:
+
+    | Rol | Scopes |
+    |---|---|
+    | `CLIENTE` | `perfil:leer` `planes:leer` `planes:escribir` `aportes:escribir` `retiros:escribir` `movimientos:leer` `cuentas:leer` |
+    | `OPERADOR` | `planes:leer` `corridas:leer` |
+    | `AUDITOR` | `planes:leer` `movimientos:leer` `corridas:leer` |
+
+    Además del scope, la API verifica la titularidad (ABAC): un `CLIENTE` solo ve y opera sus propios
+    planes; si pide uno ajeno recibe `404`, para no revelar que el recurso existe.
+
+    ## Operaciones asíncronas
+
+    Todo movimiento de dinero entre el plan y una cuenta del Core viaja como evento:
+    `DebitoSolicitado` (aporte: cuenta → plan) y `CreditoSolicitado` (retiro o devolución al
+    cancelar: plan → cuenta). Por eso `POST /aportes` y `POST /retiros` responden `202 Accepted`
+    con un recurso cuyo estado (`PENDIENTE` → `EJECUTADO` | `FALLIDO`) se consulta después.
+
+    ## Versionamiento
+
+    SemVer. Los cambios aditivos incrementan la versión menor sin romper consumidores; un cambio
+    disruptivo exige `/v2`, con `/v1` y `/v2` conviviendo durante la ventana de migración. Las
+    rutas retiradas responderán `410 Gone`.
+  contact:
+    name: Equipo Billetera de Ahorro — Maestría en Software, UPS
+
+servers:
+  - url: https://api.billetera-ahorro.example.com
+    description: Producción (detrás del API Gateway)
+  - url: http://localhost:8000
+    description: Local (Kong en Docker Compose)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Autenticación
+    description: Emisión y renovación de tokens.
+  - name: Simulación
+    description: Endpoints públicos y anónimos para simular antes de registrarse.
+  - name: Clientes
+    description: Perfil del cliente autenticado.
+  - name: Cuentas
+    description: Cuentas del cliente en el Core bancario, origen de los aportes y destino de los retiros.
+  - name: Planes de ahorro
+    description: Ciclo de vida del plan.
+  - name: Aportes
+    description: Aportes que el cliente solicita fuera del calendario.
+  - name: Retiros
+    description: Retiros parciales de un plan no bloqueado.
+  - name: Cuotas
+    description: Calendario de débitos automáticos del plan.
+  - name: Movimientos
+    description: Historial inmutable (ledger) del plan.
+  - name: Operación
+    description: Consultas para los roles OPERADOR y AUDITOR.
+
+paths:
+
+  # ---------------------------------------------------------------------------
+  # Autenticación
+  # ---------------------------------------------------------------------------
+  /v1/auth/token:
+    post:
+      tags: [Autenticación]
+      operationId: emitirToken
+      summary: Emitir o renovar un token
+      description: |
+        Con `grantType: password` verifica las credenciales (hash bcrypt) y emite un par de tokens.
+        Con `grantType: refresh_token` canjea un refresh token vigente por un par nuevo; el refresh
+        token anterior queda invalidado (rotación).
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudToken'
+            examples:
+              login:
+                summary: Inicio de sesión
+                value: { grantType: password, email: 'carlos.mendoza@email.com', contrasena: 'S3gura!2026' }
+              renovacion:
+                summary: Renovación
+                value: { grantType: refresh_token, refreshToken: 'rt_9f2c1d0a7b6e4f3a8c5d2e1f0a9b8c7d' }
+      responses:
+        '200':
+          description: Tokens emitidos.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control:
+              description: Los tokens nunca se almacenan en caché.
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Token'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401':
+          description: Credenciales o refresh token inválidos.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/Problema' }
+              example:
+                type: https://api.billetera-ahorro.example.com/problemas/credenciales-invalidas
+                title: Credenciales inválidas
+                status: 401
+                codigo: CREDENCIALES_INVALIDAS
+                detail: El email o la contraseña no son correctos.
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---------------------------------------------------------------------------
+  # Simulación (pública)
+  # ---------------------------------------------------------------------------
+  /v1/tarifas:
+    get:
+      tags: [Simulación]
+      operationId: listarTarifas
+      summary: Consultar las tarifas vigentes
+      description: |
+        Tabla pública de tasas por tramo de plazo. La tasa varía según el plazo del plan y el bloqueo
+        suma un bono. La tabla cambia sin redesplegar la aplicación.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Tarifas vigentes.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControlPublico' }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TablaTarifas'
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /v1/simulaciones:
+    get:
+      tags: [Simulación]
+      operationId: simularPlan
+      summary: Simular el rendimiento de un plan
+      description: |
+        Calcula la cuota mensual fija y la proyección mes a mes para una meta y una fecha objetivo
+        (RF-02.1). El plazo en meses se deriva de la fecha y determina el tramo de tarifa.
+        Es pública y anónima a propósito: el usuario ve cuánto tendrá antes de registrarse. Usa el
+        mismo cálculo que el plan real (patrón Strategy), así que el valor simulado coincide con el
+        que se contrata.
+
+        Es un `GET` sin efectos secundarios: la misma entrada da el mismo resultado, por lo que se
+        cachea en el Gateway. Tiene un rate limit más estricto que los endpoints autenticados.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: montoMetaCentavos
+          in: query
+          required: true
+          description: Monto objetivo en centavos. Sin mínimo ni máximo de negocio (RF-01.1).
+          schema: { type: integer, format: int64, minimum: 1 }
+          example: 120000
+        - name: fechaObjetivo
+          in: query
+          required: true
+          description: Fecha en la que se quiere alcanzar la meta. Entre 1 y 120 meses desde hoy.
+          schema: { type: string, format: date }
+          example: '2027-09-30'
+        - name: bloqueado
+          in: query
+          required: false
+          description: Si se simula con el bono por bloqueo (RF-01.6).
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Resultado de la simulación.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control: { $ref: '#/components/headers/CacheControlPublico' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+            RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+            RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Simulacion'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---------------------------------------------------------------------------
+  # Clientes
+  # ---------------------------------------------------------------------------
+  /v1/clientes/me:
+    get:
+      tags: [Clientes]
+      operationId: obtenerClienteActual
+      summary: Consultar el perfil del cliente autenticado
+      description: Datos básicos para personalizar la interfaz (saludo, encabezado).
+      security:
+        - bearerAuth: [perfil:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Perfil del cliente.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cliente'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---------------------------------------------------------------------------
+  # Cuentas
+  # ---------------------------------------------------------------------------
+  /v1/cuentas-debito:
+    get:
+      tags: [Cuentas]
+      operationId: listarCuentasDebito
+      summary: Listar las cuentas del cliente
+      description: |
+        Cuentas que pueden usarse como origen de aportes y destino de retiros, con su saldo
+        disponible. Se consulta al Core bancario a través del Adaptador Core (timeout de 2 s, sin reintentos).
+        Si el Core no responde o el Circuit Breaker está abierto, devuelve `503`.
+      security:
+        - bearerAuth: [cuentas:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Cuentas del cliente autenticado.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CuentaDebito' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  # ---------------------------------------------------------------------------
+  # Planes de ahorro
+  # ---------------------------------------------------------------------------
+  /v1/planes-ahorro:
+    get:
+      tags: [Planes de ahorro]
+      operationId: listarPlanes
+      summary: Listar planes con filtros
+      description: |
+        Historial de planes filtrable por estado (RF-01.4), con paginación por offset: cada cliente
+        tiene pocos planes y así puede saltar a una página concreta.
+
+        Un `CLIENTE` solo ve sus planes. `OPERADOR` y `AUDITOR` pueden filtrar por `clienteId`.
+
+        La respuesta incluye un `resumen` calculado sobre **todos** los planes que cumplen el filtro,
+        no solo los de la página, para mostrar los totales sin descargar todas las páginas.
+      security:
+        - bearerAuth: [planes:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: estado
+          in: query
+          description: Uno o varios estados separados por coma.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/EstadoPlan' }
+          example: [ACTIVO]
+        - name: bloqueado
+          in: query
+          schema: { type: boolean }
+        - name: clienteId
+          in: query
+          description: Solo para `OPERADOR` y `AUDITOR`. Un `CLIENTE` que lo envíe recibe `403`.
+          schema: { type: string, format: uuid }
+        - name: orden
+          in: query
+          description: Campo de orden; el prefijo `-` indica descendente.
+          schema:
+            type: string
+            enum: [creadoEn, -creadoEn, progreso, -progreso, montoMetaCentavos, -montoMetaCentavos]
+            default: -creadoEn
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/LimiteOffset'
+      responses:
+        '200':
+          description: Página de planes.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginaOffset'
+                  - type: object
+                    required: [items, resumen]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/PlanAhorro' }
+                      resumen: { $ref: '#/components/schemas/ResumenPlanes' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+    post:
+      tags: [Planes de ahorro]
+      operationId: crearPlan
+      summary: Crear un plan de ahorro
+      description: |
+        Crea un plan con cuota fija mensual (RF-01.1, RF-01.2). El cliente indica la meta y la fecha
+        objetivo; el servidor deriva el plazo, calcula la cuota (la misma que devuelve
+        `/v1/simulaciones`), congela la tarifa vigente y genera el calendario de cuotas. Antes de crear, valida con el Core que la
+        cuenta de débito pertenezca al cliente (llamada síncrona, timeout de 2 s).
+
+        Requiere `Idempotency-Key`: un reintento con la misma clave y el mismo cuerpo devuelve el plan
+        ya creado en lugar de crear otro.
+      security:
+        - bearerAuth: [planes:escribir]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CrearPlanAhorro'
+      responses:
+        '201':
+          description: Plan creado.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Location: { $ref: '#/components/headers/LocationPlan' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanAhorro'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/ServiceUnavailable' }
+
+  /v1/planes-ahorro/{planId}:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    get:
+      tags: [Planes de ahorro]
+      operationId: obtenerPlan
+      summary: Consultar un plan
+      description: Incluye el progreso de la meta como campo calculado (RF-05.1).
+      security:
+        - bearerAuth: [planes:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Plan encontrado.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanAhorro'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+    patch:
+      tags: [Planes de ahorro]
+      operationId: modificarPlan
+      summary: Cambiar los datos descriptivos o el día de débito
+      description: |
+        Actualización parcial (JSON Merge Patch, RFC 7396). Solo se pueden cambiar los datos
+        descriptivos (`nombre`, `objetivo`, `icono`) y el `diaDebito` (RF-01.3), y solo en planes
+        `ACTIVO`. La meta y la fecha objetivo no se modifican porque cambiarían la cuota pactada. El nuevo día aplica desde la próxima cuota
+        que todavía no haya entrado en cobro.
+
+        `If-Match` es opcional: si se envía y el plan cambió desde que se leyó, responde `412`.
+      security:
+        - bearerAuth: [planes:escribir]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/ModificarPlanAhorro'
+            example: { diaDebito: 5 }
+      responses:
+        '200':
+          description: Plan actualizado.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanAhorro'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '412': { $ref: '#/components/responses/PreconditionFailed' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /v1/planes-ahorro/{planId}/bloqueo:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    post:
+      tags: [Planes de ahorro]
+      operationId: bloquearPlan
+      summary: Bloquear el plan para obtener mejor tasa
+      description: |
+        Activa el bloqueo a plazo (RF-01.6): desde ese momento el plan devenga la tasa base más el
+        bono por bloqueo. Mientras está bloqueado no admite retiros. Se puede salir del bloqueo con
+        `/desbloqueo` o cancelando el plan; en ambos casos se pierden los intereses devengados.
+
+        Bloquear un plan ya bloqueado responde `409` sin cambiar nada.
+      security:
+        - bearerAuth: [planes:escribir]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Plan bloqueado con la nueva tasa.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            ETag: { $ref: '#/components/headers/ETag' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanAhorro'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /v1/planes-ahorro/{planId}/desbloqueo:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    post:
+      tags: [Planes de ahorro]
+      operationId: desbloquearPlan
+      summary: Desbloquear el plan antes de tiempo
+      description: |
+        Quita el bloqueo (RF-01.7): la tasa vuelve a la tasa base congelada al crear el plan y el
+        plan vuelve a admitir retiros. Salir del bloqueo antes de tiempo tiene la misma regla que
+        cancelar un plan bloqueado: **se pierden los intereses devengados**, que se registran como
+        un movimiento `PENALIDAD` en el ledger. No se puede deshacer, pero el plan se puede volver a
+        bloquear después con `/bloqueo`.
+      security:
+        - bearerAuth: [planes:escribir]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '200':
+          description: Plan desbloqueado.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            ETag: { $ref: '#/components/headers/ETag' }
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Desbloqueo'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /v1/planes-ahorro/{planId}/cancelacion:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    post:
+      tags: [Planes de ahorro]
+      operationId: cancelarPlan
+      summary: Cancelar el plan y devolver los fondos
+      description: |
+        Pasa el plan a `CANCELADO` y solicita la devolución del saldo a la cuenta de débito (RF-04.1).
+        Si el plan estaba bloqueado, se descuentan los intereses devengados (RF-04.2) y se registra
+        un movimiento `PENALIDAD` en el ledger.
+
+        El cambio de estado es inmediato; la acreditación en la cuenta es asíncrona (evento
+        `CreditoSolicitado`), por eso la respuesta informa `estadoDevolucion: PENDIENTE`. Por
+        defecto se devuelve a la cuenta de débito del plan; el cliente puede elegir otra.
+      security:
+        - bearerAuth: [planes:escribir]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudCancelacion'
+      responses:
+        '200':
+          description: Plan cancelado.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Cancelacion'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---------------------------------------------------------------------------
+  # Aportes
+  # ---------------------------------------------------------------------------
+  /v1/planes-ahorro/{planId}/aportes:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    post:
+      tags: [Aportes]
+      operationId: solicitarAporte
+      summary: Solicitar un aporte fuera del calendario
+      description: |
+        Publica `DebitoSolicitado` (mediante la outbox) y responde de inmediato con `202`. El débito
+        lo ejecuta el Adaptador Core contra el Core bancario; el resultado se consulta en `Location`.
+        Un aporte fallido no se reprograma: queda `FALLIDO` y el cliente decide si lo vuelve a pedir.
+
+        Requiere `Idempotency-Key` para que un reintento de red no genere un segundo débito.
+      security:
+        - bearerAuth: [aportes:escribir]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudAporte'
+      responses:
+        '202':
+          description: Aporte aceptado; el débito se procesa de forma asíncrona.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Location: { $ref: '#/components/headers/LocationAporte' }
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Aporte'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /v1/planes-ahorro/{planId}/aportes/{aporteId}:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+      - name: aporteId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Aportes]
+      operationId: obtenerAporte
+      summary: Consultar el estado de un aporte
+      security:
+        - bearerAuth: [planes:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Aporte encontrado.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Aporte'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---------------------------------------------------------------------------
+  # Retiros
+  # ---------------------------------------------------------------------------
+  /v1/planes-ahorro/{planId}/retiros:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    post:
+      tags: [Retiros]
+      operationId: solicitarRetiro
+      summary: Retirar parte del saldo a una cuenta
+      description: |
+        Retiro parcial (RF-04.3). Solo en planes `ACTIVO` y **no bloqueados**; el monto no puede
+        superar el `saldoDisponibleCentavos` del plan. El monto queda reservado de inmediato (baja el
+        saldo disponible) y se publica `CreditoSolicitado`. El movimiento `RETIRO` se asienta en el
+        ledger cuando el Core confirma la acreditación; si falla, la reserva se libera.
+
+        Requiere `Idempotency-Key` para que un reintento de red no genere un segundo retiro.
+      security:
+        - bearerAuth: [retiros:escribir]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudRetiro'
+      responses:
+        '202':
+          description: Retiro aceptado; la acreditación se procesa de forma asíncrona.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+            Location: { $ref: '#/components/headers/LocationRetiro' }
+            Idempotent-Replayed: { $ref: '#/components/headers/IdempotentReplayed' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Retiro'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /v1/planes-ahorro/{planId}/retiros/{retiroId}:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+      - name: retiroId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Retiros]
+      operationId: obtenerRetiro
+      summary: Consultar el estado de un retiro
+      security:
+        - bearerAuth: [planes:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Retiro encontrado.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Retiro'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---------------------------------------------------------------------------
+  # Cuotas
+  # ---------------------------------------------------------------------------
+  /v1/planes-ahorro/{planId}/cuotas:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    get:
+      tags: [Cuotas]
+      operationId: listarCuotas
+      summary: Consultar el calendario de cuotas
+      description: |
+        Muestra cada cuota con su estado de cobro y el número de intento (RF-03.1). Un error técnico
+        del banco no consume intentos: solo cuenta el rechazo del cargo por parte del Core.
+      security:
+        - bearerAuth: [planes:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: estado
+          in: query
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/EstadoCuota' }
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/LimiteOffset'
+      responses:
+        '200':
+          description: Página de cuotas ordenadas por número.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginaOffset'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/Cuota' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---------------------------------------------------------------------------
+  # Movimientos
+  # ---------------------------------------------------------------------------
+  /v1/planes-ahorro/{planId}/movimientos:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    get:
+      tags: [Movimientos]
+      operationId: listarMovimientos
+      summary: Consultar los movimientos del plan
+      description: |
+        Historial del ledger de solo inserción (RF-01.5, RNF-03.3), del más reciente al más antiguo.
+        Usa paginación por cursor porque los movimientos crecen sin límite y los asientos nuevos
+        desplazarían los resultados si se usara offset. El cursor es opaco: el consumidor no debe
+        interpretarlo ni construirlo.
+      security:
+        - bearerAuth: [movimientos:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: tipo
+          in: query
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/TipoMovimiento' }
+        - name: desde
+          in: query
+          description: Fecha mínima (inclusive).
+          schema: { type: string, format: date }
+        - name: hasta
+          in: query
+          description: Fecha máxima (inclusive).
+          schema: { type: string, format: date }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/LimiteCursor'
+      responses:
+        '200':
+          description: Página de movimientos.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginaCursor'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/Movimiento' }
+              example:
+                items:
+                  - id: 7d0c3c55-8f0b-4b8e-9d1e-2b7a1f6c9e01
+                    tipo: APORTE_AUTOMATICO
+                    montoCentavos: 9746
+                    moneda: USD
+                    saldoResultanteCentavos: 29374
+                    fecha: '2026-03-15T13:02:11Z'
+                    descripcion: Aporte automático programado
+                    origen: Débito automático
+                    referencia: { tipo: CUOTA, id: 'c3a1e7a4-1d2b-4c5e-8f90-1a2b3c4d5e6f' }
+                    correlationId: 4b8f0e2a-3c1d-4e5f-9a8b-7c6d5e4f3a2b
+                siguienteCursor: eyJpZCI6MTAwfQ
+                hayMas: true
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  # ---------------------------------------------------------------------------
+  # Operación
+  # ---------------------------------------------------------------------------
+  /v1/corridas-cobro:
+    get:
+      tags: [Operación]
+      operationId: listarCorridasCobro
+      summary: Listar las corridas del corte diario de débitos
+      description: Resultado de cada ejecución del Batch Processor (RNF-01.2). Solo `OPERADOR` y `AUDITOR`.
+      security:
+        - bearerAuth: [corridas:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+        - name: desde
+          in: query
+          schema: { type: string, format: date }
+        - name: hasta
+          in: query
+          schema: { type: string, format: date }
+        - name: estado
+          in: query
+          schema: { $ref: '#/components/schemas/EstadoCorrida' }
+        - $ref: '#/components/parameters/Pagina'
+        - $ref: '#/components/parameters/LimiteOffset'
+      responses:
+        '200':
+          description: Página de corridas, de la más reciente a la más antigua.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PaginaOffset'
+                  - type: object
+                    required: [items]
+                    properties:
+                      items:
+                        type: array
+                        items: { $ref: '#/components/schemas/CorridaCobro' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+  /v1/corridas-cobro/{corridaId}:
+    parameters:
+      - name: corridaId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Operación]
+      operationId: obtenerCorridaCobro
+      summary: Consultar una corrida
+      security:
+        - bearerAuth: [corridas:leer]
+      parameters:
+        - $ref: '#/components/parameters/XRequestId'
+      responses:
+        '200':
+          description: Corrida encontrada.
+          headers:
+            X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CorridaCobro'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/TooManyRequests' }
+        '500': { $ref: '#/components/responses/InternalError' }
+
+# =============================================================================
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access token JWT (RS256, 15 minutos) emitido por `POST /v1/auth/token`. Claims relevantes:
+        `sub` (id del cliente o usuario interno), `roles` (`CLIENTE`, `OPERADOR`, `AUDITOR`),
+        `scope` (lista separada por espacios), `exp`, `iat`, `iss`, `jti`. Los valores listados en
+        cada requisito de seguridad son los scopes que el token debe incluir.
+
+  # ---------------------------------------------------------------------------
+  parameters:
+    XRequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Identificador de la petición para trazabilidad de extremo a extremo. Si no se envía, el Gateway lo genera.
+      schema: { type: string, format: uuid }
+
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        Clave única generada por el cliente (UUID) para esta intención. Se conserva 24 horas. La
+        misma clave con el mismo cuerpo devuelve la respuesta original; con otro cuerpo, `409`.
+      schema: { type: string, format: uuid }
+
+    IfMatch:
+      name: If-Match
+      in: header
+      required: false
+      description: ETag obtenido al leer el plan. Si no coincide con la versión actual, responde `412`.
+      schema: { type: string }
+
+    PlanId:
+      name: planId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+    Pagina:
+      name: pagina
+      in: query
+      description: Número de página, empieza en 1.
+      schema: { type: integer, minimum: 1, default: 1 }
+
+    LimiteOffset:
+      name: limite
+      in: query
+      description: Elementos por página.
+      schema: { type: integer, minimum: 1, maximum: 50, default: 10 }
+
+    Cursor:
+      name: cursor
+      in: query
+      description: Valor de `siguienteCursor` de la página anterior. Se omite en la primera página.
+      schema: { type: string, maxLength: 512 }
+
+    LimiteCursor:
+      name: limite
+      in: query
+      description: Elementos por página.
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  # ---------------------------------------------------------------------------
+  headers:
+    XRequestId:
+      description: Identificador de la petición (el recibido o el generado por el Gateway).
+      schema: { type: string, format: uuid }
+    ETag:
+      description: Versión de la representación.
+      schema: { type: string }
+    CacheControlPublico:
+      description: Respuesta cacheable por el Gateway y el navegador.
+      schema: { type: string, example: 'public, max-age=300' }
+    LocationPlan:
+      description: URL del plan creado.
+      schema: { type: string, format: uri-reference, example: /v1/planes-ahorro/3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d }
+    LocationAporte:
+      description: URL para consultar el estado del aporte.
+      schema: { type: string, format: uri-reference }
+    LocationRetiro:
+      description: URL para consultar el estado del retiro.
+      schema: { type: string, format: uri-reference }
+    IdempotentReplayed:
+      description: '`true` cuando la respuesta es la repetición de una petición ya procesada con la misma Idempotency-Key.'
+      schema: { type: boolean }
+    RetryAfter:
+      description: Segundos que el cliente debe esperar antes de reintentar.
+      schema: { type: integer, minimum: 1 }
+    RateLimitLimit:
+      description: Peticiones permitidas en la ventana actual.
+      schema: { type: integer }
+    RateLimitRemaining:
+      description: Peticiones restantes en la ventana actual.
+      schema: { type: integer }
+    RateLimitReset:
+      description: Segundos hasta que se reinicia la ventana.
+      schema: { type: integer }
+
+  # ---------------------------------------------------------------------------
+  responses:
+    BadRequest:
+      description: La petición no cumple el esquema o las reglas de validación.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.billetera-ahorro.example.com/problemas/validacion
+            title: Datos inválidos
+            status: 400
+            codigo: VALIDACION
+            detail: La petición tiene 1 error de validación.
+            instance: /v1/planes-ahorro
+            errores:
+              - campo: diaDebito
+                mensaje: debe estar entre 1 y 28
+
+    Unauthorized:
+      description: Falta el token, la firma no es válida o expiró.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        WWW-Authenticate:
+          schema: { type: string, example: 'Bearer error="invalid_token", error_description="El token expiró"' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.billetera-ahorro.example.com/problemas/token-invalido
+            title: Token inválido
+            status: 401
+            codigo: TOKEN_INVALIDO
+            detail: El token expiró.
+
+    Forbidden:
+      description: El token es válido pero no tiene el scope o el rol requerido.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.billetera-ahorro.example.com/problemas/permiso-insuficiente
+            title: Permiso insuficiente
+            status: 403
+            codigo: PERMISO_INSUFICIENTE
+            detail: 'Se requiere el scope planes:escribir.'
+
+    NotFound:
+      description: El recurso no existe o no pertenece al cliente autenticado.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.billetera-ahorro.example.com/problemas/no-encontrado
+            title: Recurso no encontrado
+            status: 404
+            codigo: NO_ENCONTRADO
+            detail: No existe el plan 3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d.
+
+    Conflict:
+      description: |
+        La operación no es válida para el estado actual del recurso (patrón State) o la
+        Idempotency-Key ya se usó con otro cuerpo.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          examples:
+            estadoInvalido:
+              summary: Transición inválida
+              value:
+                type: https://api.billetera-ahorro.example.com/problemas/estado-invalido
+                title: Operación no permitida en el estado actual
+                status: 409
+                codigo: ESTADO_INVALIDO
+                detail: No se puede aportar a un plan en estado CANCELADO.
+            retiroBloqueado:
+              summary: Retiro en plan bloqueado
+              value:
+                type: https://api.billetera-ahorro.example.com/problemas/retiro-no-permitido
+                title: Retiro no permitido
+                status: 409
+                codigo: RETIRO_NO_PERMITIDO
+                detail: El plan tiene los fondos bloqueados. Desbloquéelo antes de retirar.
+            saldoInsuficiente:
+              summary: Retiro mayor al saldo disponible
+              value:
+                type: https://api.billetera-ahorro.example.com/problemas/saldo-insuficiente
+                title: Saldo insuficiente
+                status: 409
+                codigo: SALDO_INSUFICIENTE
+                detail: El monto supera el saldo disponible del plan.
+            noBloqueado:
+              summary: Desbloquear un plan que no está bloqueado
+              value:
+                type: https://api.billetera-ahorro.example.com/problemas/plan-no-bloqueado
+                title: El plan no está bloqueado
+                status: 409
+                codigo: PLAN_NO_BLOQUEADO
+            yaBloqueado:
+              summary: Plan ya bloqueado
+              value:
+                type: https://api.billetera-ahorro.example.com/problemas/plan-ya-bloqueado
+                title: El plan ya está bloqueado
+                status: 409
+                codigo: PLAN_YA_BLOQUEADO
+            idempotencia:
+              summary: Clave reutilizada con otro cuerpo
+              value:
+                type: https://api.billetera-ahorro.example.com/problemas/idempotencia
+                title: Idempotency-Key reutilizada
+                status: 409
+                codigo: IDEMPOTENCIA_CONFLICTO
+                detail: La clave ya se usó con un cuerpo distinto.
+
+    PreconditionFailed:
+      description: El ETag de `If-Match` no coincide con la versión actual.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.billetera-ahorro.example.com/problemas/version-desactualizada
+            title: Versión desactualizada
+            status: 412
+            codigo: VERSION_DESACTUALIZADA
+
+    UnsupportedMediaType:
+      description: El `Content-Type` no es el esperado por la operación.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+
+    TooManyRequests:
+      description: Se superó el rate limit del Gateway.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+        RateLimit-Limit: { $ref: '#/components/headers/RateLimitLimit' }
+        RateLimit-Remaining: { $ref: '#/components/headers/RateLimitRemaining' }
+        RateLimit-Reset: { $ref: '#/components/headers/RateLimitReset' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.billetera-ahorro.example.com/problemas/limite-excedido
+            title: Demasiadas peticiones
+            status: 429
+            codigo: LIMITE_EXCEDIDO
+            detail: Intente de nuevo en 30 segundos.
+
+    InternalError:
+      description: Error inesperado. El detalle técnico no se expone; se registra con el `X-Request-Id`.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.billetera-ahorro.example.com/problemas/error-interno
+            title: Error interno
+            status: 500
+            codigo: ERROR_INTERNO
+            detail: Ocurrió un error inesperado. Referencia 9b2f6c1e-0a4d-4e8b-b7c3-5d1e2f3a4b5c.
+
+    ServiceUnavailable:
+      description: El Core bancario no respondió a tiempo o el Circuit Breaker está abierto.
+      headers:
+        X-Request-Id: { $ref: '#/components/headers/XRequestId' }
+        Retry-After: { $ref: '#/components/headers/RetryAfter' }
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problema' }
+          example:
+            type: https://api.billetera-ahorro.example.com/problemas/core-no-disponible
+            title: Core bancario no disponible
+            status: 503
+            codigo: CORE_NO_DISPONIBLE
+            detail: No fue posible validar la cuenta. Intente de nuevo en unos segundos.
+
+  # ---------------------------------------------------------------------------
+  schemas:
+
+    # --- Tipos base ---------------------------------------------------------
+    Moneda:
+      type: string
+      description: Código ISO 4217. En el MVP solo se opera en dólares.
+      enum: [USD]
+
+    Centavos:
+      type: integer
+      format: int64
+      description: Monto en centavos de la moneda indicada.
+
+    TasaAnual:
+      type: number
+      description: Porcentaje anual (4.5 = 4,5 %).
+      minimum: 0
+      maximum: 100
+
+    # --- Enumeraciones ------------------------------------------------------
+    EstadoPlan:
+      type: string
+      enum: [ACTIVO, COMPLETADO, CANCELADO]
+      description: |
+        `ACTIVO` → `COMPLETADO` cuando el saldo alcanza la meta. `ACTIVO` → `CANCELADO` a pedido del
+        cliente. `COMPLETADO` y `CANCELADO` son estados finales.
+
+    EstadoCuota:
+      type: string
+      enum: [PROGRAMADA, PENDIENTE, EJECUTADA, CANCELADA]
+      description: |
+        `PROGRAMADA`: fecha futura. `PENDIENTE`: en cobro, con reintentos cada 24 h. `EJECUTADA`:
+        cobrada. `CANCELADA`: el Core rechazó el cargo en los 5 intentos; el plazo del plan se
+        extendió un mes.
+
+    EstadoDebito:
+      type: string
+      enum: [PENDIENTE, EJECUTADO, FALLIDO]
+
+    TipoMovimiento:
+      type: string
+      enum: [APORTE_AUTOMATICO, APORTE_MANUAL, INTERES, RETIRO, PENALIDAD, DEVOLUCION]
+      description: |
+        `APORTE_AUTOMATICO`: cuota debitada por el Batch. `APORTE_MANUAL`: aporte bajo solicitud.
+        `INTERES`: interés acreditado. `RETIRO`: retiro parcial a una cuenta (monto negativo).
+        `PENALIDAD`: intereses perdidos al desbloquear o al cancelar un plan bloqueado (monto
+        negativo). `DEVOLUCION`: saldo devuelto a la cuenta al cancelar o completar (monto negativo).
+
+    EstadoCorrida:
+      type: string
+      enum: [EN_PROCESO, COMPLETADA, FALLIDA]
+
+    Icono:
+      type: string
+      description: Nombre del ícono de Material Symbols que representa el plan en la interfaz.
+      enum: [shield, flight_takeoff, directions_car, home, school, celebration, savings, favorite]
+
+    # --- Autenticación ------------------------------------------------------
+    SolicitudToken:
+      oneOf:
+        - $ref: '#/components/schemas/SolicitudTokenPassword'
+        - $ref: '#/components/schemas/SolicitudTokenRefresh'
+      discriminator:
+        propertyName: grantType
+        mapping:
+          password: '#/components/schemas/SolicitudTokenPassword'
+          refresh_token: '#/components/schemas/SolicitudTokenRefresh'
+
+    SolicitudTokenPassword:
+      type: object
+      additionalProperties: false
+      required: [grantType, email, contrasena]
+      properties:
+        grantType: { type: string, const: password }
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        contrasena:
+          type: string
+          format: password
+          writeOnly: true
+          minLength: 8
+          maxLength: 128
+
+    SolicitudTokenRefresh:
+      type: object
+      additionalProperties: false
+      required: [grantType, refreshToken]
+      properties:
+        grantType: { type: string, const: refresh_token }
+        refreshToken: { type: string, minLength: 1, writeOnly: true }
+
+    Token:
+      type: object
+      required: [accessToken, tokenType, expiresIn, refreshToken, scope]
+      properties:
+        accessToken: { type: string, description: JWT firmado con RS256. }
+        tokenType: { type: string, const: Bearer }
+        expiresIn: { type: integer, description: Segundos de vigencia del access token., example: 900 }
+        refreshToken: { type: string }
+        scope:
+          type: string
+          description: Scopes concedidos, separados por espacios.
+          example: planes:leer planes:escribir aportes:escribir movimientos:leer cuentas:leer
+
+    # --- Clientes -----------------------------------------------------------
+    Cliente:
+      type: object
+      required: [id, nombre, email]
+      properties:
+        id: { type: string, format: uuid }
+        nombre: { type: string, example: Carlos Mendoza }
+        email: { type: string, format: email, example: carlos.mendoza@email.com }
+
+    # --- Simulación ---------------------------------------------------------
+    TramoTarifa:
+      type: object
+      required: [plazoMinimoMeses, tasaBaseAnual, bonoBloqueoAnual]
+      properties:
+        plazoMinimoMeses: { type: integer, minimum: 1 }
+        plazoMaximoMeses:
+          type: [integer, 'null']
+          minimum: 1
+          description: '`null` indica sin tope.'
+        tasaBaseAnual: { $ref: '#/components/schemas/TasaAnual' }
+        bonoBloqueoAnual: { $ref: '#/components/schemas/TasaAnual' }
+
+    TablaTarifas:
+      type: object
+      required: [moneda, vigenteDesde, tramos]
+      properties:
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        vigenteDesde: { type: string, format: date }
+        tramos:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/TramoTarifa' }
+      example:
+        moneda: USD
+        vigenteDesde: '2026-09-01'
+        tramos:
+          - { plazoMinimoMeses: 1, plazoMaximoMeses: 11, tasaBaseAnual: 4.0, bonoBloqueoAnual: 1.0 }
+          - { plazoMinimoMeses: 12, plazoMaximoMeses: 23, tasaBaseAnual: 4.5, bonoBloqueoAnual: 1.1 }
+          - { plazoMinimoMeses: 24, plazoMaximoMeses: null, tasaBaseAnual: 5.0, bonoBloqueoAnual: 1.25 }
+
+    Tasas:
+      type: object
+      description: Tasas nominales anuales (TNA) y la tasa efectiva anual (TEA) equivalente.
+      required: [baseAnual, bonoBloqueoAnual, totalAnual, efectivaAnual]
+      properties:
+        baseAnual:
+          allOf: [{ $ref: '#/components/schemas/TasaAnual' }]
+          description: TNA sin bloqueo, congelada al crear el plan. Es la tasa que queda al desbloquear.
+        bonoBloqueoAnual:
+          allOf: [{ $ref: '#/components/schemas/TasaAnual' }]
+          description: 0 si el plan no está bloqueado.
+        totalAnual:
+          allOf: [{ $ref: '#/components/schemas/TasaAnual' }]
+          description: TNA vigente = base + bono.
+        efectivaAnual:
+          allOf: [{ $ref: '#/components/schemas/TasaAnual' }]
+          description: TEA equivalente a la TNA vigente con capitalización mensual.
+
+    PuntoProyeccion:
+      type: object
+      required: [mes, aportadoCentavos, interesesCentavos, saldoCentavos]
+      properties:
+        mes: { type: integer, minimum: 1 }
+        aportadoCentavos: { $ref: '#/components/schemas/Centavos' }
+        interesesCentavos: { $ref: '#/components/schemas/Centavos' }
+        saldoCentavos: { $ref: '#/components/schemas/Centavos' }
+
+    Simulacion:
+      type: object
+      required:
+        - moneda
+        - montoMetaCentavos
+        - fechaObjetivo
+        - plazoMeses
+        - bloqueado
+        - tasas
+        - cuotaMensualCentavos
+        - totalAportadoCentavos
+        - interesesProyectadosCentavos
+        - montoFinalCentavos
+        - proyeccion
+      properties:
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        montoMetaCentavos: { $ref: '#/components/schemas/Centavos' }
+        fechaObjetivo: { type: string, format: date }
+        plazoMeses: { type: integer, description: Meses entre hoy y la fecha objetivo. }
+        bloqueado: { type: boolean }
+        tasas: { $ref: '#/components/schemas/Tasas' }
+        cuotaMensualCentavos: { $ref: '#/components/schemas/Centavos' }
+        totalAportadoCentavos: { $ref: '#/components/schemas/Centavos' }
+        interesesProyectadosCentavos: { $ref: '#/components/schemas/Centavos' }
+        montoFinalCentavos: { $ref: '#/components/schemas/Centavos' }
+        proyeccion:
+          type: array
+          description: Saldo proyectado al cierre de cada mes, para graficar la evolución.
+          items: { $ref: '#/components/schemas/PuntoProyeccion' }
+      example:
+        moneda: USD
+        montoMetaCentavos: 120000
+        fechaObjetivo: '2027-09-30'
+        plazoMeses: 12
+        bloqueado: true
+        tasas: { baseAnual: 4.5, bonoBloqueoAnual: 1.1, totalAnual: 5.6, efectivaAnual: 5.75 }
+        cuotaMensualCentavos: 9746
+        totalAportadoCentavos: 116952
+        interesesProyectadosCentavos: 3048
+        montoFinalCentavos: 120000
+        proyeccion:
+          - { mes: 1, aportadoCentavos: 9746, interesesCentavos: 0, saldoCentavos: 9746 }
+          - { mes: 2, aportadoCentavos: 19492, interesesCentavos: 45, saldoCentavos: 19537 }
+          - { mes: 3, aportadoCentavos: 29238, interesesCentavos: 136, saldoCentavos: 29374 }
+
+    # --- Cuentas ------------------------------------------------------------
+    CuentaDebito:
+      type: object
+      required: [id, numeroEnmascarado, tipo, moneda]
+      properties:
+        id: { type: string, format: uuid }
+        alias: { type: string, example: carlos.ahorros }
+        numeroEnmascarado: { type: string, example: '******5890' }
+        tipo: { type: string, enum: [AHORROS, CORRIENTE] }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        saldoDisponibleCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Saldo informado por el Core. Solo se incluye en `GET /v1/cuentas-debito`.
+
+    # --- Planes -------------------------------------------------------------
+    CrearPlanAhorro:
+      type: object
+      additionalProperties: false
+      required: [nombre, icono, montoMetaCentavos, fechaObjetivo, diaDebito, cuentaDebitoId]
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 60, example: Auto nuevo }
+        objetivo:
+          type: string
+          maxLength: 140
+          description: Descripción libre de para qué es el ahorro.
+        icono: { $ref: '#/components/schemas/Icono' }
+        montoMetaCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          minimum: 1
+          description: Sin mínimo ni máximo de negocio (RF-01.1).
+        fechaObjetivo:
+          type: string
+          format: date
+          description: Entre 1 y 120 meses desde hoy. De aquí se deriva el plazo.
+        diaDebito:
+          type: integer
+          minimum: 1
+          maximum: 28
+          description: Día del mes para el débito automático. Hasta 28 para que exista en todos los meses.
+        cuentaDebitoId: { type: string, format: uuid }
+        bloqueado:
+          type: boolean
+          default: false
+          description: Si el plan nace bloqueado con el bono de tasa.
+      example:
+        nombre: Auto nuevo
+        objetivo: Cuota inicial para la compra de un vehículo
+        icono: directions_car
+        montoMetaCentavos: 120000
+        fechaObjetivo: '2027-09-30'
+        diaDebito: 15
+        cuentaDebitoId: 0c6f2a9e-1b3d-4e5f-8a7b-6c5d4e3f2a1b
+        bloqueado: true
+
+    ModificarPlanAhorro:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        nombre: { type: string, minLength: 1, maxLength: 60 }
+        objetivo: { type: string, maxLength: 140 }
+        icono: { $ref: '#/components/schemas/Icono' }
+        diaDebito: { type: integer, minimum: 1, maximum: 28 }
+
+    PlanAhorro:
+      type: object
+      required:
+        - id
+        - nombre
+        - icono
+        - estado
+        - moneda
+        - montoMetaCentavos
+        - fechaObjetivo
+        - cuotaMensualCentavos
+        - plazoMeses
+        - diaDebito
+        - cuentaDebito
+        - bloqueado
+        - tasas
+        - saldoCentavos
+        - saldoDisponibleCentavos
+        - interesesDevengadosCentavos
+        - progreso
+        - fechaInicio
+        - fechaFinEstimada
+        - creadoEn
+        - actualizadoEn
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        nombre: { type: string }
+        objetivo: { type: string }
+        icono: { $ref: '#/components/schemas/Icono' }
+        estado: { $ref: '#/components/schemas/EstadoPlan' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        montoMetaCentavos: { $ref: '#/components/schemas/Centavos' }
+        fechaObjetivo:
+          type: string
+          format: date
+          description: Fecha pactada al crear el plan. No cambia; las prórrogas se reflejan en `fechaFinEstimada`.
+        cuotaMensualCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Calculada por el servidor al crear el plan.
+        plazoMeses:
+          type: integer
+          description: Plazo vigente. Crece un mes por cada cuota cancelada tras 5 intentos fallidos.
+        prorrogasMeses:
+          type: integer
+          minimum: 0
+          description: Meses agregados al plazo original por cuotas canceladas.
+        diaDebito: { type: integer, minimum: 1, maximum: 28 }
+        cuentaDebito: { $ref: '#/components/schemas/CuentaDebito' }
+        bloqueado: { type: boolean }
+        bloqueadoDesde: { type: [string, 'null'], format: date-time }
+        tasas: { $ref: '#/components/schemas/Tasas' }
+        saldoCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Suma de los movimientos del ledger. No se almacena ni se sobrescribe.
+        saldoDisponibleCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Saldo menos los retiros pendientes de acreditar. Es el máximo que se puede retirar si el plan no está bloqueado.
+        interesesDevengadosCentavos: { $ref: '#/components/schemas/Centavos' }
+        progreso:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: 'Campo calculado: saldo / meta × 100, con dos decimales (RF-05.1).'
+        proximoDebito:
+          type: [string, 'null']
+          format: date
+          description: '`null` si el plan no está activo.'
+        fechaInicio: { type: string, format: date }
+        fechaFinEstimada: { type: string, format: date }
+        creadoEn: { type: string, format: date-time, readOnly: true }
+        actualizadoEn: { type: string, format: date-time, readOnly: true }
+      example:
+        id: 3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+        nombre: Auto nuevo
+        objetivo: Cuota inicial para la compra de un vehículo
+        icono: directions_car
+        estado: ACTIVO
+        moneda: USD
+        montoMetaCentavos: 120000
+        fechaObjetivo: '2026-12-31'
+        cuotaMensualCentavos: 9746
+        plazoMeses: 12
+        prorrogasMeses: 0
+        diaDebito: 15
+        cuentaDebito: { id: 0c6f2a9e-1b3d-4e5f-8a7b-6c5d4e3f2a1b, alias: carlos.ahorros, numeroEnmascarado: '******5890', tipo: AHORROS, moneda: USD }
+        bloqueado: true
+        bloqueadoDesde: '2026-01-01T15:20:00Z'
+        tasas: { baseAnual: 4.5, bonoBloqueoAnual: 1.1, totalAnual: 5.6, efectivaAnual: 5.75 }
+        saldoCentavos: 29374
+        saldoDisponibleCentavos: 29374
+        interesesDevengadosCentavos: 136
+        progreso: 24.48
+        proximoDebito: '2026-04-15'
+        fechaInicio: '2026-01-01'
+        fechaFinEstimada: '2026-12-15'
+        creadoEn: '2026-01-01T15:20:00Z'
+        actualizadoEn: '2026-03-15T13:02:11Z'
+
+    ResumenPlanes:
+      type: object
+      description: Totales sobre todos los planes que cumplen el filtro.
+      required: [moneda, totalAhorradoCentavos, totalMetaCentavos, cantidadPlanes, planesActivos]
+      properties:
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        totalAhorradoCentavos: { $ref: '#/components/schemas/Centavos' }
+        totalMetaCentavos: { $ref: '#/components/schemas/Centavos' }
+        cantidadPlanes: { type: integer, minimum: 0 }
+        planesActivos: { type: integer, minimum: 0 }
+
+    Desbloqueo:
+      type: object
+      required: [plan, interesesPerdidosCentavos]
+      properties:
+        plan: { $ref: '#/components/schemas/PlanAhorro' }
+        interesesPerdidosCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Intereses devengados descontados al salir del bloqueo.
+
+    SolicitudCancelacion:
+      type: object
+      additionalProperties: false
+      properties:
+        motivo: { type: string, maxLength: 200 }
+        cuentaDestinoId:
+          type: string
+          format: uuid
+          description: Cuenta donde se devuelve el saldo. Por defecto, la cuenta de débito del plan.
+
+    Cancelacion:
+      type: object
+      required: [plan, saldoCentavos, interesesPerdidosCentavos, montoDevueltoCentavos, cuentaDestino, estadoDevolucion]
+      properties:
+        plan: { $ref: '#/components/schemas/PlanAhorro' }
+        cuentaDestino: { $ref: '#/components/schemas/CuentaDebito' }
+        saldoCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Saldo al momento de cancelar.
+        interesesPerdidosCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Intereses descontados por cancelar un plan bloqueado (RF-04.2). 0 si no estaba bloqueado.
+        montoDevueltoCentavos: { $ref: '#/components/schemas/Centavos' }
+        estadoDevolucion: { $ref: '#/components/schemas/EstadoDebito' }
+
+    # --- Aportes ------------------------------------------------------------
+    SolicitudAporte:
+      type: object
+      additionalProperties: false
+      required: [montoCentavos]
+      properties:
+        montoCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          minimum: 1
+          description: Sin monto mínimo de negocio.
+        cuentaOrigenId:
+          type: string
+          format: uuid
+          description: Cuenta a debitar. Por defecto, la cuenta de débito del plan.
+      example: { montoCentavos: 5000, cuentaOrigenId: 0c6f2a9e-1b3d-4e5f-8a7b-6c5d4e3f2a1b }
+
+    Aporte:
+      type: object
+      required: [id, planId, montoCentavos, moneda, cuentaOrigen, estado, solicitadoEn]
+      properties:
+        id: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        montoCentavos: { $ref: '#/components/schemas/Centavos' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        cuentaOrigen: { $ref: '#/components/schemas/CuentaDebito' }
+        estado: { $ref: '#/components/schemas/EstadoDebito' }
+        solicitadoEn: { type: string, format: date-time }
+        procesadoEn: { type: [string, 'null'], format: date-time }
+        motivoFallo:
+          type: [string, 'null']
+          enum: [FONDOS_INSUFICIENTES, CUENTA_BLOQUEADA, CORE_NO_DISPONIBLE, null]
+        correlationId: { type: string, format: uuid }
+      example:
+        id: 8e2d4f6a-1c3b-4d5e-9f8a-7b6c5d4e3f2a
+        planId: 3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+        montoCentavos: 5000
+        moneda: USD
+        cuentaOrigen: { id: 0c6f2a9e-1b3d-4e5f-8a7b-6c5d4e3f2a1b, alias: carlos.ahorros, numeroEnmascarado: '******5890', tipo: AHORROS, moneda: USD }
+        estado: PENDIENTE
+        solicitadoEn: '2026-03-20T16:45:00Z'
+        procesadoEn: null
+        motivoFallo: null
+        correlationId: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+
+    # --- Retiros ------------------------------------------------------------
+    SolicitudRetiro:
+      type: object
+      additionalProperties: false
+      required: [montoCentavos]
+      properties:
+        montoCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          minimum: 1
+          description: No puede superar el saldo disponible del plan.
+        cuentaDestinoId:
+          type: string
+          format: uuid
+          description: Cuenta donde se acredita. Por defecto, la cuenta de débito del plan.
+      example: { montoCentavos: 20000, cuentaDestinoId: 0c6f2a9e-1b3d-4e5f-8a7b-6c5d4e3f2a1b }
+
+    Retiro:
+      type: object
+      required: [id, planId, montoCentavos, moneda, cuentaDestino, estado, solicitadoEn]
+      properties:
+        id: { type: string, format: uuid }
+        planId: { type: string, format: uuid }
+        montoCentavos: { $ref: '#/components/schemas/Centavos' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        cuentaDestino: { $ref: '#/components/schemas/CuentaDebito' }
+        estado: { $ref: '#/components/schemas/EstadoDebito' }
+        solicitadoEn: { type: string, format: date-time }
+        procesadoEn: { type: [string, 'null'], format: date-time }
+        motivoFallo:
+          type: [string, 'null']
+          enum: [CUENTA_BLOQUEADA, CORE_NO_DISPONIBLE, null]
+        correlationId: { type: string, format: uuid }
+
+    # --- Cuotas -------------------------------------------------------------
+    Cuota:
+      type: object
+      required: [id, numero, fechaProgramada, montoCentavos, moneda, estado, intentos]
+      properties:
+        id: { type: string, format: uuid }
+        numero: { type: integer, minimum: 1 }
+        fechaProgramada: { type: string, format: date }
+        montoCentavos: { $ref: '#/components/schemas/Centavos' }
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        estado: { $ref: '#/components/schemas/EstadoCuota' }
+        intentos:
+          type: integer
+          minimum: 0
+          maximum: 5
+          description: Rechazos del Core. Los errores técnicos no cuentan.
+        proximoIntento:
+          type: [string, 'null']
+          format: date-time
+          description: Solo en estado `PENDIENTE`.
+        ejecutadaEn: { type: [string, 'null'], format: date-time }
+
+    # --- Movimientos --------------------------------------------------------
+    Movimiento:
+      type: object
+      required: [id, tipo, montoCentavos, moneda, saldoResultanteCentavos, fecha]
+      properties:
+        id: { type: string, format: uuid }
+        tipo: { $ref: '#/components/schemas/TipoMovimiento' }
+        montoCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Positivo si suma al saldo del plan, negativo si resta.
+        moneda: { $ref: '#/components/schemas/Moneda' }
+        saldoResultanteCentavos:
+          allOf: [{ $ref: '#/components/schemas/Centavos' }]
+          description: Saldo del plan después del movimiento.
+        fecha: { type: string, format: date-time }
+        descripcion: { type: string, example: Aporte automático programado }
+        origen:
+          type: string
+          description: Texto corto de dónde salió o a dónde fue el dinero, para mostrar en el historial.
+          examples: [Débito automático, Cuenta ******5890, Rendimiento]
+        referencia:
+          type: [object, 'null']
+          description: Recurso que originó el movimiento.
+          required: [tipo, id]
+          properties:
+            tipo: { type: string, enum: [CUOTA, APORTE, RETIRO, DESBLOQUEO, CANCELACION] }
+            id: { type: string, format: uuid }
+        correlationId:
+          type: string
+          format: uuid
+          description: Identificador del evento que originó el movimiento.
+
+    # --- Operación ----------------------------------------------------------
+    CorridaCobro:
+      type: object
+      required: [id, fechaCorte, estado, iniciadaEn, totalCuotas, ejecutadas, rechazadas, reprogramadas, canceladas]
+      properties:
+        id: { type: string, format: uuid }
+        fechaCorte: { type: string, format: date }
+        estado: { $ref: '#/components/schemas/EstadoCorrida' }
+        iniciadaEn: { type: string, format: date-time }
+        finalizadaEn: { type: [string, 'null'], format: date-time }
+        totalCuotas: { type: integer, minimum: 0 }
+        ejecutadas: { type: integer, minimum: 0 }
+        rechazadas: { type: integer, minimum: 0, description: Rechazos del Core en esta corrida. }
+        reprogramadas: { type: integer, minimum: 0, description: Cuotas que se reintentarán en 24 h. }
+        canceladas: { type: integer, minimum: 0, description: Cuotas canceladas al quinto rechazo. }
+        erroresTecnicos: { type: integer, minimum: 0, description: Fallos técnicos; no consumen intentos. }
+
+    # --- Paginación ---------------------------------------------------------
+    PaginaOffset:
+      type: object
+      required: [pagina, limite, totalElementos, totalPaginas]
+      properties:
+        pagina: { type: integer, minimum: 1 }
+        limite: { type: integer, minimum: 1 }
+        totalElementos: { type: integer, minimum: 0 }
+        totalPaginas: { type: integer, minimum: 0 }
+
+    PaginaCursor:
+      type: object
+      required: [siguienteCursor, hayMas]
+      properties:
+        siguienteCursor:
+          type: [string, 'null']
+          description: Cursor opaco para la página siguiente; `null` si no hay más.
+        hayMas: { type: boolean }
+
+    # --- Errores ------------------------------------------------------------
+    Problema:
+      type: object
+      description: Detalle de error según RFC 9457 (Problem Details for HTTP APIs).
+      required: [type, title, status, codigo]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        codigo:
+          type: string
+          description: Código estable para que el consumidor decida qué hacer sin interpretar textos.
+          examples: [VALIDACION, TOKEN_INVALIDO, ESTADO_INVALIDO, CORE_NO_DISPONIBLE]
+        errores:
+          type: array
+          description: Solo en errores de validación.
+          items:
+            type: object
+            required: [campo, mensaje]
+            properties:
+              campo: { type: string }
+              mensaje: { type: string }

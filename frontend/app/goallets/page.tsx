@@ -6,12 +6,11 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { GoalletCard } from "@/components/goallets/GoalletCard";
 import { useGoalletStore } from "@/lib/store";
-import { formatMoney } from "@/lib/format";
+import { formatCentavos } from "@/lib/format";
 
 function GoalletsContent() {
-  const goallets = useGoalletStore((s) => s.goallets);
-  const totalAhorrado = goallets.reduce((acc, g) => acc + g.montoActual, 0);
-  const totalMeta = goallets.reduce((acc, g) => acc + g.montoMeta, 0);
+  const goallets = useGoalletStore((s) => s.planes);
+  const resumen = useGoalletStore((s) => s.resumen)();
 
   return (
       <main className="flex-1 w-full">
@@ -48,22 +47,22 @@ function GoalletsContent() {
               </span>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="font-headline text-currency text-on-surface">
-                  {formatMoney(totalAhorrado)}
+                  {formatCentavos(resumen.totalAhorradoCentavos)}
                 </span>
                 <span className="text-sm text-on-surface-variant">
-                  de {formatMoney(totalMeta)} en metas
+                  de {formatCentavos(resumen.totalMetaCentavos)} en metas
                 </span>
               </div>
             </div>
             <span className="text-sm text-on-surface-variant">
-              {goallets.length} {goallets.length === 1 ? "Goallet activo" : "Goallets activos"}
+              {resumen.planesActivos} {resumen.planesActivos === 1 ? "Goallet activo" : "Goallets activos"}
             </span>
           </div>
 
           {goallets.length === 0 ? (
             <div className="bg-surface-container-lowest rounded-lg p-10 shadow-sm text-center flex flex-col items-center gap-3">
               <span className="material-symbols-outlined text-[40px] text-primary">savings</span>
-              <p className="text-on-surface-variant">Todavía no creaste ningún Goallet.</p>
+              <p className="text-on-surface-variant">Todavía no has creado ningún Goallet.</p>
               <Link
                 href="/goallets/new"
                 className="inline-flex items-center gap-2 bg-primary text-on-primary text-sm font-semibold px-5 py-2.5 rounded-sm hover:bg-primary-dark transition-colors"

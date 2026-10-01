@@ -7,7 +7,7 @@
 - `CoreLegacyAdapter`: traduce las llamadas del dominio a la interfaz SOAP/REST del Core Bancario Legacy. En el proyecto, ese Core es la simulación en MongoDB de la carpeta `bdd/` (fuera de alcance).
 - `CoreSimuladoAdapter`: responde en memoria, sin depender de ningún Core (perfil de pruebas unitarias).
 
-Atiende los dos flujos del diagrama de contenedores: la validación síncrona de titularidad y saldo que pide la Ahorro Core API (REST) y el consumo de `DebitoSolicitado` (AMQP).
+Atiende los dos flujos del diagrama de contenedores: la validación síncrona de titularidad y saldo que pide la Ahorro Core API (REST) y el consumo de `DebitoSolicitado` y `CreditoSolicitado` (AMQP).
 
 **Por qué / impacto:**
 - Aísla el dominio del legacy: si el Core cambia, solo se modifica el adaptador (RNF-03.1).
@@ -28,7 +28,7 @@ El Retry va por fuera para que cada intento cuente en la ventana del Circuit Bre
 - La capa de logging registra errores y tiempos de respuesta, que la rúbrica pide.
 - La política depende del camino (Fase 2, §4.2):
   - **Síncrono** (validación de titularidad y saldo, el cliente espera): timeout de 2 s y Circuit Breaker, **sin** Retry con espera. Con el backoff completo, una validación fallida tardaría más de 7 s y rompería el p95 < 500 ms.
-  - **Asíncrono** (consumo de `DebitoSolicitado`): Circuit Breaker y Retry con backoff y jitter.
+  - **Asíncrono** (consumo de `DebitoSolicitado` y `CreditoSolicitado`): Circuit Breaker y Retry con backoff y jitter.
 - Solo cubre el reintento **técnico**. El reintento **de negocio** (5 intentos cada 24 h) lo gestiona el Batch Processor (ver patrón State).
 
 ---
@@ -37,7 +37,7 @@ El Retry va por fuera para que cada intento cuente en la ventana del Circuit Bre
 
 **Dónde:** **Ahorro Core API**, en el dominio del plan:
 - `CalculoInteresStrategy`: tasa base o tasa con bono por bloqueo (RF-01.6).
-- `PoliticaCancelacionStrategy`: cancelación sin penalidad o con pérdida de los intereses devengados si el plan está bloqueado (RF-04.1, RF-04.2).
+- `PoliticaSalidaBloqueoStrategy`: al cancelar o desbloquear, sin penalidad o con pérdida de los intereses devengados si el plan está bloqueado (RF-01.7, RF-04.1, RF-04.2).
 
 **Por qué / impacto:**
 - La simulación pública (RF-02.1) y el plan real usan el mismo cálculo, así que el valor simulado coincide con el real.
@@ -49,11 +49,11 @@ El Retry va por fuera para que cada intento cuente en la ventana del Circuit Bre
 ## 4. State
 
 **Dónde:**
-- **Ahorro Core API**, para el ciclo de vida del plan: `ACTIVO → COMPLETADO` y `ACTIVO → CANCELADO` (RF-01.4).
+- **Ahorro Core API**, para el ciclo de vida del plan: `ACTIVO → COMPLETADO` y `ACTIVO → CANCELADO` (RF-01.4), con el sub-estado de bloqueo dentro de `ACTIVO` (bloqueado ↔ no bloqueado; un plan bloqueado no admite retiros).
 - **Batch Processor**, para el ciclo de vida del débito: `PENDIENTE → EJECUTADO` o `PENDIENTE → FALLIDO`. Si el Core rechaza un débito automático, se reprograma a las 24 h, hasta un máximo de 5 intentos (RF-03.1). Al quinto fallo la cuota se cancela y **el plazo del plan se extiende un mes** (regla de cobranza de la Fase 1). Un aporte bajo solicitud no se reprograma: queda `FALLIDO` y el cliente decide si lo vuelve a pedir.
 
 **Por qué / impacto:**
-- Impide transiciones inválidas, como aportar a un plan cancelado o cancelar uno completado.
+- Impide transiciones inválidas, como aportar a un plan cancelado, cancelar uno completado o retirar de uno bloqueado.
 - Cada transición inválida se traduce directamente en un `409 Conflict` del contrato OpenAPI.
 - La política de 5 intentos queda en un solo lugar y no repartida en condicionales.
 - Expone al cliente el estado del débito (`PENDIENTE`, `EJECUTADO`, `FALLIDO`), que es la mitigación de consistencia eventual definida en la Fase 2 (§3.3).
@@ -66,9 +66,11 @@ El Retry va por fuera para que cada intento cuente en la ventana del Circuit Bre
 
 | Publica | Evento | Consume |
 |---|---|---|
-| Ahorro Core API | `PlanCreado`, `PlanCancelado` | Sistema de Notificaciones |
+| Ahorro Core API | `PlanCreado` | Sistema de Notificaciones |
+| Ahorro Core API | `PlanCancelado` | Sistema de Notificaciones |
 | Ahorro Core API (aporte bajo solicitud) y Batch Processor (débito automático) | `DebitoSolicitado` | Adaptador Core |
-| Adaptador Core | `DebitoEjecutado`, `DebitoFallido` | Batch Processor (registra en el ledger el resultado de **ambos** tipos de débito y aplica los reintentos), Sistema de Notificaciones |
+| Ahorro Core API (retiro parcial y devolución al cancelar) | `CreditoSolicitado` | Adaptador Core |
+| Adaptador Core | `DebitoEjecutado`, `DebitoFallido`, `CreditoEjecutado`, `CreditoFallido` | Batch Processor (registra en el ledger el resultado de **todo** débito y crédito y aplica los reintentos), Sistema de Notificaciones |
 
 Dentro de cada servicio, los eventos se emiten como eventos de dominio (`ApplicationEventPublisher`) y un listener los envía al broker.
 

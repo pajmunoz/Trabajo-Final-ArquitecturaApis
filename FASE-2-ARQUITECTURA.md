@@ -46,7 +46,8 @@ Al revisar los requisitos de la Fase 1 notamos que no todos influyen igual en la
 | RF-01.4 y RF-01.5 | Historial de planes y de movimientos | Paginación por offset y por cursor, filtros |
 | RF-02.1 | Simulación pública sin autenticación | Rate Limiting y caché |
 | RF-03.1 | Débito automático con 5 intentos cada 24 h | Reintento de negocio a cargo del Batch, modelado con el patrón State |
-| RF-04.2 | Penalidad al cancelar un plan bloqueado | Política de cancelación intercambiable (patrón Strategy) |
+| RF-04.2 y RF-01.7 | Penalidad al cancelar o desbloquear un plan bloqueado | Política de salida del bloqueo intercambiable (patrón Strategy) |
+| RF-04.3 | Retiro parcial a una cuenta del cliente | Evento CreditoSolicitado, simétrico al débito |
 
 *Tabla 1. Requisitos con impacto en la arquitectura*
 
@@ -58,7 +59,7 @@ Organizamos los componentes según las cuatro capas de una arquitectura orientad
 
 | Capa | Componentes | Responsabilidad |
 |---|---|---|
-| Presentación | Banca web (SPA en Next.js) | Interfaz para simular, crear, consultar, aportar y cancelar planes |
+| Presentación | Banca web (SPA en Next.js) | Interfaz para simular, crear, consultar, aportar, retirar, bloquear, desbloquear y cancelar planes |
 | Integración | API Gateway (Kong), Adaptador Core y Message Broker (RabbitMQ) | Punto de entrada, seguridad perimetral, traducción hacia el legacy y mensajería asíncrona |
 | Aplicación | Ahorro Core API, Servicio de Autenticación y Batch Processor | Reglas de negocio de los planes, emisión de tokens y corte de débitos |
 | Acceso a datos | PostgreSQL 15 | Planes, calendario de aportes, usuarios, ledger y tabla outbox, con transacciones ACID |
@@ -144,7 +145,7 @@ La Tabla 5 resume los patrones que aplicamos. Para cada uno indicamos el pilar a
 | Rate Limiting | Resiliencia | Kong, con un límite menor para anónimos en /simulaciones | Abuso del endpoint público; se responde 429 con Retry-After (RF-02.1) |
 | Fachada / Adaptador | Integración | Adaptador Core | Aísla el dominio del protocolo legacy; si cambia el Core, solo se modifica el adaptador (RNF-03.1) |
 | Circuit Breaker | Resiliencia | Llamadas del Adaptador al Core legacy | Cascadas de error por validaciones lentas; protege el pool de hilos (RNF-03.2) |
-| Retry con backoff exponencial y jitter | Resiliencia | Llamadas asíncronas al Core (consumo de DebitoSolicitado): 1 s, 2 s y 4 s más un valor aleatorio | Caídas por reintentos simultáneos (efecto estampida) |
+| Retry con backoff exponencial y jitter | Resiliencia | Llamadas asíncronas al Core (consumo de DebitoSolicitado y CreditoSolicitado): 1 s, 2 s y 4 s más un valor aleatorio | Caídas por reintentos simultáneos (efecto estampida) |
 | Timeout | Resiliencia | Llamada síncrona de validación de cuenta: 2 s, sin reintentos con espera | Que una respuesta lenta del Core no rompa el p95 de la API (RNF-01.1) |
 | Paginación y filtrado | Consumo | GET /v1/planes-ahorro (offset) y GET /v1/planes-ahorro/{planId}/movimientos (cursor) | Respuestas grandes y desplazamiento del offset (RF-01.4 y RF-01.5) |
 | Caché HTTP | Consumo | GET /v1/simulaciones con Cache-Control | La misma entrada da el mismo resultado; baja la latencia (RNF-01.1) |
@@ -152,7 +153,7 @@ La Tabla 5 resume los patrones que aplicamos. Para cada uno indicamos el pilar a
 | Transactional Outbox | Integración | Tabla outbox en PostgreSQL, en la API y el Batch | Que nunca quede un cambio guardado sin su evento ni un evento publicado de un cambio que no se guardó (RNF-02.3) |
 | Consumidor idempotente | Resiliencia | Todos los consumidores de RabbitMQ, usando el correlation-id | El broker puede entregar un mensaje más de una vez; un duplicado no debe generar un segundo débito ni un segundo asiento |
 | Ledger de solo inserción | Persistencia | Tabla ledger en PostgreSQL | Auditoría inmutable; el saldo se obtiene sumando movimientos (RNF-03.3) |
-| Idempotency-Key | Resiliencia | POST /v1/planes-ahorro y POST /v1/planes-ahorro/{planId}/aportes | Evita que un reintento del cliente cree un plan duplicado o genere un segundo débito |
+| Idempotency-Key | Resiliencia | POST /v1/planes-ahorro y los POST de /aportes, /retiros, /desbloqueo y /cancelacion | Evita que un reintento del cliente cree un plan duplicado o mueva dinero dos veces |
 
 *Tabla 5. Patrones aplicados*
 
@@ -167,7 +168,7 @@ También distinguimos los dos caminos que llegan al Core, porque no toleran la m
 | Camino | Quién espera | Resiliencia aplicada |
 |---|---|---|
 | Síncrono: validar titularidad y saldo de la cuenta origen | El cliente, en línea | Timeout de 2 s y Circuit Breaker, sin reintentos con espera. Si falla, la API responde 503 y el cliente puede volver a intentar |
-| Asíncrono: ejecutar el débito al consumir DebitoSolicitado | Nadie en línea | Circuit Breaker y Retry con backoff de 1 s, 2 s y 4 s más jitter. Si se agotan, se publica DebitoFallido con causa técnica |
+| Asíncrono: ejecutar el débito o el crédito al consumir DebitoSolicitado o CreditoSolicitado | Nadie en línea | Circuit Breaker y Retry con backoff de 1 s, 2 s y 4 s más jitter. Si se agotan, se publica DebitoFallido o CreditoFallido con causa técnica |
 
 *Tabla 6. Resiliencia según el camino hacia el Core*
 
@@ -183,7 +184,7 @@ Usamos las dos estrategias de paginación vistas en la Unidad 3, cada una donde 
 GET /v1/planes-ahorro?estado=ACTIVO&pagina=1&limite=10
 GET /v1/planes-ahorro/{planId}/movimientos?cursor=eyJpZCI6MTIwfQ&limite=20
 
-{ "items": [ { "id": 120, "tipo": "DEBITO", "montoCentavos": 5000, "moneda": "USD" } ],
+{ "items": [ { "id": 120, "tipo": "APORTE_AUTOMATICO", "montoCentavos": 9746, "moneda": "USD" } ],
   "siguienteCursor": "eyJpZCI6MTAwfQ", "hayMas": true }
 ```
 
@@ -201,7 +202,7 @@ Los patrones anteriores definen cómo se relacionan los contenedores. Para imple
 |---|---|---|
 | Adapter | Adaptador Core: puerto CoreBancarioPort con dos implementaciones, CoreLegacyAdapter (habla con el Core) y CoreSimuladoAdapter (respuestas en memoria para pruebas unitarias) | Fachada / Adaptador: si el Core cambia, solo cambia el adaptador (RNF-03.1) |
 | Decorator | Adaptador Core: Retry → Circuit Breaker → Logging envolviendo al adaptador | Circuit Breaker, Retry y Timeout se agregan por composición, sin modificar el adaptador (RNF-03.2) |
-| Strategy | Ahorro Core API: CalculoInteresStrategy (tasa base o con bono por bloqueo) y PoliticaCancelacionStrategy (con o sin pérdida de intereses) | La simulación pública y el plan real usan el mismo cálculo (RF-02.1, RF-01.6, RF-04.2) |
+| Strategy | Ahorro Core API: CalculoInteresStrategy (tasa base o con bono por bloqueo) y PoliticaSalidaBloqueoStrategy (con o sin pérdida de intereses al cancelar o desbloquear) | La simulación pública y el plan real usan el mismo cálculo (RF-02.1, RF-01.6, RF-01.7, RF-04.2) |
 | State | Ahorro Core API (ciclo de vida del plan) y Batch Processor (ciclo de vida del débito) | Las transiciones inválidas se traducen en 409 Conflict; la política de cinco intentos queda en un solo lugar (RF-03.1) |
 | Observer | Eventos de dominio de Spring dentro de cada servicio, enviados al broker a través de la outbox | Publicación / suscripción y Transactional Outbox (RNF-03.1, RF-05.2) |
 
@@ -209,16 +210,18 @@ Los patrones anteriores definen cómo se relacionan los contenedores. Para imple
 
 El patrón State modela estas transiciones:
 
-- **Plan:** ACTIVO → COMPLETADO cuando el saldo alcanza la meta, y ACTIVO → CANCELADO a pedido del cliente. COMPLETADO y CANCELADO son estados finales: no admiten aportes ni cancelación.
+- **Plan:** ACTIVO → COMPLETADO cuando el saldo alcanza la meta, y ACTIVO → CANCELADO a pedido del cliente. COMPLETADO y CANCELADO son estados finales: no admiten aportes, retiros ni cancelación. Dentro de ACTIVO, el bloqueo es un sub-estado: bloqueado ↔ no bloqueado; mientras está bloqueado no admite retiros, y salir del bloqueo descuenta los intereses devengados.
 - **Débito:** PENDIENTE → EJECUTADO, o PENDIENTE → FALLIDO cuando el Core rechaza el cargo. Un débito automático fallido se reprograma a las 24 horas hasta cinco intentos; al quinto, la cuota se cancela y el plazo del plan se extiende un mes, como define la regla de cobranza de la Fase 1. Un aporte bajo solicitud no se reprograma: si falla, el cliente ve el estado FALLIDO y decide si lo vuelve a pedir.
 
-La Tabla 8 muestra quién publica y quién consume cada evento. El Batch Processor consume el resultado de los dos tipos de débito y lo registra en el ledger, así que el asiento contable se implementa una sola vez:
+La Tabla 8 muestra quién publica y quién consume cada evento. El Batch Processor consume el resultado de todo movimiento de dinero con el Core (débitos y créditos) y lo registra en el ledger, así que el asiento contable se implementa una sola vez:
 
 | Publica | Evento | Consume |
 |---|---|---|
-| Ahorro Core API | PlanCreado, PlanCancelado | Sistema de Notificaciones |
+| Ahorro Core API | PlanCreado | Sistema de Notificaciones |
+| Ahorro Core API | PlanCancelado | Sistema de Notificaciones |
 | Ahorro Core API (aporte bajo solicitud) y Batch Processor (débito automático) | DebitoSolicitado | Adaptador Core |
-| Adaptador Core | DebitoEjecutado, DebitoFallido | Batch Processor (registro en el ledger y reintentos) y Sistema de Notificaciones |
+| Ahorro Core API (retiro parcial y devolución al cancelar) | CreditoSolicitado | Adaptador Core |
+| Adaptador Core | DebitoEjecutado, DebitoFallido, CreditoEjecutado, CreditoFallido | Batch Processor (registro en el ledger y reintentos) y Sistema de Notificaciones |
 
 *Tabla 8. Eventos del sistema*
 

@@ -1,80 +1,137 @@
-export type MovimientoTipo = "aporte" | "retiro" | "rendimiento";
+// Tipos alineados con contracts/openapi.yaml. Los montos van en centavos (enteros)
+// y las tasas como porcentaje anual (4.5 = 4,5 %).
+
+export type Moneda = "USD";
+
+export type Icono =
+  | "shield"
+  | "flight_takeoff"
+  | "directions_car"
+  | "home"
+  | "school"
+  | "celebration"
+  | "savings"
+  | "favorite";
+
+export type EstadoPlan = "ACTIVO" | "COMPLETADO" | "CANCELADO";
+
+export type EstadoDebito = "PENDIENTE" | "EJECUTADO" | "FALLIDO";
+
+export type TipoMovimiento =
+  | "APORTE_AUTOMATICO"
+  | "APORTE_MANUAL"
+  | "INTERES"
+  | "RETIRO"
+  | "PENALIDAD"
+  | "DEVOLUCION";
+
+export interface Cliente {
+  id: string;
+  nombre: string;
+  email: string;
+}
+
+export interface CuentaDebito {
+  id: string;
+  alias?: string;
+  numeroEnmascarado: string;
+  tipo: "AHORROS" | "CORRIENTE";
+  moneda: Moneda;
+  /** Solo viene en GET /v1/cuentas-debito. */
+  saldoDisponibleCentavos?: number;
+}
+
+export interface Tasas {
+  baseAnual: number;
+  bonoBloqueoAnual: number;
+  totalAnual: number;
+  efectivaAnual: number;
+}
+
+export interface PlanAhorro {
+  id: string;
+  nombre: string;
+  objetivo?: string;
+  icono: Icono;
+  estado: EstadoPlan;
+  moneda: Moneda;
+  montoMetaCentavos: number;
+  fechaObjetivo: string;
+  cuotaMensualCentavos: number;
+  plazoMeses: number;
+  prorrogasMeses?: number;
+  diaDebito: number;
+  cuentaDebito: CuentaDebito;
+  bloqueado: boolean;
+  bloqueadoDesde?: string | null;
+  tasas: Tasas;
+  saldoCentavos: number;
+  saldoDisponibleCentavos: number;
+  interesesDevengadosCentavos: number;
+  progreso: number;
+  proximoDebito?: string | null;
+  fechaInicio: string;
+  fechaFinEstimada: string;
+  creadoEn: string;
+  actualizadoEn: string;
+}
 
 export interface Movimiento {
   id: string;
-  tipo: MovimientoTipo;
-  descripcion: string;
-  origen: string;
-  monto: number;
+  tipo: TipoMovimiento;
+  montoCentavos: number;
+  moneda: Moneda;
+  saldoResultanteCentavos: number;
   fecha: string;
-  saldoResultante: number;
+  descripcion?: string;
+  origen?: string;
 }
 
-export interface Booster {
-  id: string;
-  titulo: string;
-  descripcion: string;
-  icono: string;
-  activo: boolean;
-  etiqueta: string;
+export interface ResumenPlanes {
+  moneda: Moneda;
+  totalAhorradoCentavos: number;
+  totalMetaCentavos: number;
+  cantidadPlanes: number;
+  planesActivos: number;
 }
 
-export interface Goallet {
-  id: string;
-  nombre: string;
-  objetivo: string;
-  icono: string;
-  montoMeta: number;
-  montoActual: number;
-  aportePeriodicoSugerido: number;
-  tasaTNA: number;
-  tasaTEA: number;
+export interface Simulacion {
+  moneda: Moneda;
+  montoMetaCentavos: number;
+  fechaObjetivo: string;
+  plazoMeses: number;
   bloqueado: boolean;
-  /** Tasa a la que vuelve el Goallet si se desbloquean los fondos antes de tiempo. */
-  tasaTNASinBloqueo?: number;
-  tasaTEASinBloqueo?: number;
-  fechaLimite: string;
-  creadoEn: string;
-  boosters: Booster[];
-  movimientos: Movimiento[];
+  tasas: Tasas;
+  cuotaMensualCentavos: number;
+  totalAportadoCentavos: number;
+  interesesProyectadosCentavos: number;
+  montoFinalCentavos: number;
 }
 
-export interface NuevoGoalletInput {
+/** Cuerpo de POST /v1/planes-ahorro. */
+export interface CrearPlanAhorro {
   nombre: string;
-  objetivo: string;
-  icono: string;
-  montoMeta: number;
-  aportePeriodicoSugerido: number;
-  fechaLimite: string;
+  objetivo?: string;
+  icono: Icono;
+  montoMetaCentavos: number;
+  fechaObjetivo: string;
+  diaDebito: number;
+  cuentaDebitoId: string;
   bloqueado: boolean;
 }
 
-export interface Cuenta {
-  id: string;
-  tipo: string;
-  alias: string;
-  numero: string;
-  moneda: "USD";
-  saldo: number;
-}
-
+// Fuera del contrato: las tarjetas pertenecen al Core bancario y solo se muestran
+// en el dashboard con datos de prueba.
 export interface TarjetaCredito {
   id: string;
   marca: "Visa" | "Mastercard";
   nombreTitular: string;
   numeroEnmascarado: string;
+  /** Centavos. */
   saldoActual: number;
+  /** Centavos. */
   limite: number;
   vencimiento: string;
   colorDesde: string;
   colorHasta: string;
-}
-
-export interface Usuario {
-  id: string;
-  nombre: string;
-  email: string;
-  password: string;
-  cuentas: Cuenta[];
-  tarjetas: TarjetaCredito[];
 }

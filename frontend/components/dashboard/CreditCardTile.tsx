@@ -1,5 +1,5 @@
 import type { TarjetaCredito } from "@/lib/types";
-import { formatMoney } from "@/lib/format";
+import { formatCentavos } from "@/lib/format";
 
 export function CreditCardTile({ tarjeta }: { tarjeta: TarjetaCredito }) {
   const disponible = tarjeta.limite - tarjeta.saldoActual;
@@ -37,11 +37,11 @@ export function CreditCardTile({ tarjeta }: { tarjeta: TarjetaCredito }) {
       <div className="flex items-center justify-between border-t border-white/20 pt-2 mt-1">
         <div>
           <span className="text-[10px] uppercase tracking-wide opacity-70 block">Saldo actual</span>
-          <span className="font-headline text-sm font-bold">{formatMoney(tarjeta.saldoActual)}</span>
+          <span className="font-headline text-sm font-bold">{formatCentavos(tarjeta.saldoActual)}</span>
         </div>
         <div className="text-right">
           <span className="text-[10px] uppercase tracking-wide opacity-70 block">Disponible</span>
-          <span className="font-headline text-sm font-bold">{formatMoney(disponible)}</span>
+          <span className="font-headline text-sm font-bold">{formatCentavos(disponible)}</span>
         </div>
       </div>
     </div>
