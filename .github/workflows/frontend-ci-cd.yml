@@ -42,7 +42,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npm run lint
-      - run: npx tsc --noEmit
+      # Los tipos globales de Next.js (LayoutProps, rutas) se generan en .next/types.
+      - name: Tipos (TypeScript)
+        run: npx next typegen && npx tsc --noEmit
       - name: Compilar (standalone)
         run: npm run build
       - name: Empaquetar
