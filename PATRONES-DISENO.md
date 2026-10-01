@@ -4,27 +4,31 @@
 ## 1. Adapter
 
 **Dónde:** contenedor **Adaptador Core (Fachada)**. Se define la interfaz `CoreBancarioPort` con dos implementaciones, seleccionadas por perfil de Spring:
-- `CoreLegacyAdapter`: traduce las llamadas del dominio a la interfaz SOAP/REST del Core Bancario Legacy.
-- `CoreSimuladoAdapter`: responde sin depender del Core real (perfil de pruebas).
+- `CoreLegacyAdapter`: traduce las llamadas del dominio a la interfaz SOAP/REST del Core Bancario Legacy. En el proyecto, ese Core es la simulación en MongoDB de la carpeta `bdd/` (fuera de alcance).
+- `CoreSimuladoAdapter`: responde en memoria, sin depender de ningún Core (perfil de pruebas unitarias).
 
 Atiende los dos flujos del diagrama de contenedores: la validación síncrona de titularidad y saldo que pide la Ahorro Core API (REST) y el consumo de `DebitoSolicitado` (AMQP).
 
 **Por qué / impacto:**
 - Aísla el dominio del legacy: si el Core cambia, solo se modifica el adaptador (RNF-03.1).
-- La implementación simulada permite correr las pruebas unitarias y las pruebas de carga y spike con k6 (200 y 500 VUs) sin depender del Core real.
-- Permite medir el rendimiento propio de la API sin el ruido del legacy.
+- La implementación en memoria permite correr las pruebas unitarias sin depender del Core.
 
 ---
 
 ## 2. Decorator
 
 **Dónde:** dentro del **Adaptador Core**, como envoltorios sobre `CoreBancarioPort`:
-`CircuitBreaker( Retry( Logging( CoreLegacyAdapter ) ) )`
+`Retry( CircuitBreaker( Logging( CoreLegacyAdapter ) ) )`, construido con `Decorators` de Resilience4j.
+
+El Retry va por fuera para que cada intento cuente en la ventana del Circuit Breaker; con el circuito abierto, el Retry no reintenta y el fallo se devuelve de inmediato.
 
 **Por qué / impacto:**
 - Circuit Breaker y Retry con backoff exponencial y jitter (1 s, 2 s, 4 s + aleatorio) se agregan por composición, sin modificar el adaptador (RNF-03.2). Corresponde al elemento "Circuit Breaker + Retry" de la vista ArchiMate.
 - Cada capa de resiliencia se puede probar de forma aislada.
 - La capa de logging registra errores y tiempos de respuesta, que la rúbrica pide.
+- La política depende del camino (Fase 2, §4.2):
+  - **Síncrono** (validación de titularidad y saldo, el cliente espera): timeout de 2 s y Circuit Breaker, **sin** Retry con espera. Con el backoff completo, una validación fallida tardaría más de 7 s y rompería el p95 < 500 ms.
+  - **Asíncrono** (consumo de `DebitoSolicitado`): Circuit Breaker y Retry con backoff y jitter.
 - Solo cubre el reintento **técnico**. El reintento **de negocio** (5 intentos cada 24 h) lo gestiona el Batch Processor (ver patrón State).
 
 ---
@@ -46,7 +50,7 @@ Atiende los dos flujos del diagrama de contenedores: la validación síncrona de
 
 **Dónde:**
 - **Ahorro Core API**, para el ciclo de vida del plan: `ACTIVO → COMPLETADO` y `ACTIVO → CANCELADO` (RF-01.4).
-- **Batch Processor**, para el ciclo de vida del débito: `PENDIENTE → EJECUTADO` o `PENDIENTE → FALLIDO`. Si el Core rechaza el cargo, se reprograma a las 24 h, hasta un máximo de 5 intentos (RF-03.1).
+- **Batch Processor**, para el ciclo de vida del débito: `PENDIENTE → EJECUTADO` o `PENDIENTE → FALLIDO`. Si el Core rechaza un débito automático, se reprograma a las 24 h, hasta un máximo de 5 intentos (RF-03.1). Al quinto fallo la cuota se cancela y **el plazo del plan se extiende un mes** (regla de cobranza de la Fase 1). Un aporte bajo solicitud no se reprograma: queda `FALLIDO` y el cliente decide si lo vuelve a pedir.
 
 **Por qué / impacto:**
 - Impide transiciones inválidas, como aportar a un plan cancelado o cancelar uno completado.
@@ -64,7 +68,7 @@ Atiende los dos flujos del diagrama de contenedores: la validación síncrona de
 |---|---|---|
 | Ahorro Core API | `PlanCreado`, `PlanCancelado` | Sistema de Notificaciones |
 | Ahorro Core API (aporte bajo solicitud) y Batch Processor (débito automático) | `DebitoSolicitado` | Adaptador Core |
-| Adaptador Core | `DebitoEjecutado`, `DebitoFallido` | Batch Processor, Sistema de Notificaciones |
+| Adaptador Core | `DebitoEjecutado`, `DebitoFallido` | Batch Processor (registra en el ledger el resultado de **ambos** tipos de débito y aplica los reintentos), Sistema de Notificaciones |
 
 Dentro de cada servicio, los eventos se emiten como eventos de dominio (`ApplicationEventPublisher`) y un listener los envía al broker.
 

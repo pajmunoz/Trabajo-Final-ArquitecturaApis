@@ -8,9 +8,13 @@ Para regenerar el Mermaid: `structurizr-cli export -workspace diagramas/workspac
 
 ## Exportar imágenes (PNG/SVG) sin Docker
 
+Requiere `brew install structurizr openjdk@21` (Structurizr necesita Java 21). Desde la raíz del repo:
+
 ```bash
-bash ~/.claude-somnio/skills/structurizr-export/scripts/lite.sh diagramas 8080
-node ~/.claude-somnio/skills/structurizr-export/scripts/exportar.js http://localhost:8080 diagramas/export/img
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+structurizr local diagramas &          # sirve el workspace en http://localhost:8080
+structurizr export -f png -url http://localhost:8080/workspace/1/diagrams -o diagramas/export/img
+structurizr export -f svg -url http://localhost:8080/workspace/1/diagrams -o diagramas/export/img
 ```
 
-Deja `Contexto.png` y `Contenedores.png` (más `.svg` y leyendas) en `export/img/`, que son las que usa el informe de la Fase 2.
+La primera exportación descarga el navegador de Playwright. Deja `Contexto.png` y `Contenedores.png` (más `.svg` y leyendas) en `export/img/`, que son las que usa el informe de la Fase 2. La exportación PNG también genera `*-key.png`, que no se usan.

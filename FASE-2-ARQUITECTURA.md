@@ -28,6 +28,8 @@ En la Fase 1 justificamos el caso de negocio de la Billetera de Ahorro. En esta 
 
 Para tomar las decisiones usamos las herramientas que revisamos en la Unidad 2 de la asignatura (Prieto, 2026): la matriz de calidad ISO/IEC 25010, el árbol de decisiones de interacción de datos, los tres pilares de patrones y la matriz de diagnóstico.
 
+Los patrones se presentan en dos niveles. En el nivel de arquitectura (sección 4.1) están los patrones orientados a APIs que organizan los contenedores: API Gateway, Circuit Breaker, paginación, publicación/suscripción, entre otros. En el nivel de código (sección 4.5) están los patrones de diseño clásicos (Gamma et al., 1994) con los que cada contenedor implementa esas decisiones.
+
 ### 1.2 Requisitos que guían la arquitectura
 
 Al revisar los requisitos de la Fase 1 notamos que no todos influyen igual en la arquitectura. La siguiente tabla recoge los que más pesaron en nuestras decisiones:
@@ -37,13 +39,14 @@ Al revisar los requisitos de la Fase 1 notamos que no todos influyen igual en la
 | RNF-01.1 | p95 menor a 500 ms en endpoints síncronos | Caché HTTP, paginación y pocas llamadas síncronas |
 | RNF-01.2 | Procesamiento batch del corte de débitos | Batch Processor y uso de eventos para absorber el pico |
 | RNF-02.1 | JWT de corta duración emitido por un servicio interno | Servicio de Autenticación y validación en el Gateway |
-| RNF-02.3 | Consistencia ACID en los movimientos de saldo | Una sola base relacional para las escrituras |
+| RNF-02.3 | Consistencia ACID en los movimientos de saldo | Una sola base relacional para las escrituras y Transactional Outbox para publicar eventos |
 | RNF-03.1 | Desacoplamiento del Core legacy vía EDA | Message Broker y Adaptador Core |
 | RNF-03.2 | Disponibilidad de 99.9 % | Circuit Breaker y Retry con jitter |
 | RNF-03.3 | Auditoría inmutable por transacción | Ledger de solo inserción |
 | RF-01.4 y RF-01.5 | Historial de planes y de movimientos | Paginación por offset y por cursor, filtros |
 | RF-02.1 | Simulación pública sin autenticación | Rate Limiting y caché |
-| RF-03.1 | Débito automático con 5 intentos cada 24 h | Reintento de negocio a cargo del Batch |
+| RF-03.1 | Débito automático con 5 intentos cada 24 h | Reintento de negocio a cargo del Batch, modelado con el patrón State |
+| RF-04.2 | Penalidad al cancelar un plan bloqueado | Política de cancelación intercambiable (patrón Strategy) |
 
 *Tabla 1. Requisitos con impacto en la arquitectura*
 
@@ -58,13 +61,15 @@ Organizamos los componentes según las cuatro capas de una arquitectura orientad
 | Presentación | Banca web (SPA en Next.js) | Interfaz para simular, crear, consultar, aportar y cancelar planes |
 | Integración | API Gateway (Kong), Adaptador Core y Message Broker (RabbitMQ) | Punto de entrada, seguridad perimetral, traducción hacia el legacy y mensajería asíncrona |
 | Aplicación | Ahorro Core API, Servicio de Autenticación y Batch Processor | Reglas de negocio de los planes, emisión de tokens y corte de débitos |
-| Acceso a datos | PostgreSQL 15 | Planes, calendario de aportes, usuarios y ledger con transacciones ACID |
+| Acceso a datos | PostgreSQL 15 | Planes, calendario de aportes, usuarios, ledger y tabla outbox, con transacciones ACID |
 
 *Tabla 2. Capas y componentes de la solución*
 
 ### 2.2 Diagrama de contexto
 
-Modelamos la arquitectura con el enfoque C4 en Structurizr DSL (archivo diagramas/workspace.dsl). A nivel de contexto el sistema solo depende de dos sistemas que el banco ya tiene: el Core bancario, que sigue siendo el responsable de las operaciones contables, y el sistema de notificaciones.
+Modelamos la arquitectura con el enfoque C4 en Structurizr DSL (archivo diagramas/workspace.dsl). A nivel de contexto el sistema solo depende de dos sistemas que el banco ya tiene: el Core bancario, que sigue siendo el responsable de las cuentas y de las operaciones contables, y el sistema de notificaciones.
+
+Ambos sistemas quedan fuera del alcance del proyecto. Para poder ejecutar el flujo completo, el Core bancario se simula con una base MongoDB (carpeta bdd/) que reproduce clientes, cuentas y saldos como lo haría un core de producción. La Billetera de Ahorro no accede a esa base directamente: toda interacción pasa por el Adaptador Core, igual que ocurriría con el Core real.
 
 ![Ilustración 1. Diagrama de contexto (C4, nivel 1)](diagramas/export/img/Contexto.png)
 
@@ -73,6 +78,8 @@ Modelamos la arquitectura con el enfoque C4 en Structurizr DSL (archivo diagrama
 ### 2.3 Diagrama de contenedores
 
 Decidimos desplegar la solución como un monolito modular y no como microservicios. En la infografía de rediseño vista en clase, esta opción aparece como la adecuada para equipos pequeños y dominios simples, y ese es nuestro caso: tenemos un solo dominio (los planes de ahorro) y un equipo de cinco personas. Separamos en contenedores propios únicamente el Batch Processor, el Adaptador Core y el Servicio de Autenticación, porque tienen un ciclo de ejecución o requisitos de seguridad distintos a los de la API.
+
+La Ahorro Core API y el Batch Processor no publican directamente en RabbitMQ: guardan el evento en una tabla outbox dentro de la misma transacción que la operación que lo origina, y un publicador lo envía al broker después del commit (sección 4.1).
 
 ![Ilustración 2. Diagrama de contenedores (C4, nivel 2)](diagramas/export/img/Contenedores.png)
 
@@ -83,11 +90,11 @@ Decidimos desplegar la solución como un monolito modular y no como microservici
 | SPA | Next.js (React) | Interfaz del cliente |
 | API Gateway | Kong Gateway | Punto de entrada único, TLS 1.3, validación de firma y expiración del JWT, Rate Limiting |
 | Servicio de Autenticación | Spring Boot + JWT (RS256) | Verifica credenciales y emite el access token y el refresh token |
-| Ahorro Core API | Spring Boot (REST) | Planes, simulación pública, aportes bajo solicitud y consultas |
-| Batch Processor | CronJob / Worker | Corte diario de débitos automáticos y reintentos de negocio |
-| Adaptador Core | Spring Boot + Resilience4j | Único punto de contacto con el Core legacy |
+| Ahorro Core API | Spring Boot (REST) | Planes, simulación pública, aportes bajo solicitud y consultas; publica eventos mediante la tabla outbox |
+| Batch Processor | Spring Boot (CronJob + Worker) | Corte diario de débitos automáticos, reintentos de negocio y registro en el ledger del resultado de todos los débitos |
+| Adaptador Core | Spring Boot + Resilience4j | Único punto de contacto con el Core legacy, detrás del puerto CoreBancarioPort |
 | Message Broker | RabbitMQ | Publicación y suscripción de eventos |
-| Base de datos | PostgreSQL 15 | Datos del dominio y ledger |
+| Base de datos | PostgreSQL 15 | Datos del dominio, ledger y tabla outbox |
 
 *Tabla 3. Contenedores del sistema*
 
@@ -137,12 +144,15 @@ La Tabla 5 resume los patrones que aplicamos. Para cada uno indicamos el pilar a
 | Rate Limiting | Resiliencia | Kong, con un límite menor para anónimos en /simulaciones | Abuso del endpoint público; se responde 429 con Retry-After (RF-02.1) |
 | Fachada / Adaptador | Integración | Adaptador Core | Aísla el dominio del protocolo legacy; si cambia el Core, solo se modifica el adaptador (RNF-03.1) |
 | Circuit Breaker | Resiliencia | Llamadas del Adaptador al Core legacy | Cascadas de error por validaciones lentas; protege el pool de hilos (RNF-03.2) |
-| Retry con backoff exponencial y jitter | Resiliencia | La misma llamada: 1 s, 2 s y 4 s más un valor aleatorio | Caídas por reintentos simultáneos (efecto estampida) |
-| Paginación y filtrado | Consumo | GET /planes (offset) y GET /planes/{id}/movimientos (cursor) | Respuestas grandes y desplazamiento del offset (RF-01.4 y RF-01.5) |
-| Caché HTTP | Consumo | GET /simulaciones con Cache-Control | La misma entrada da el mismo resultado; baja la latencia (RNF-01.1) |
-| Publicación / suscripción | Estilo EDA | La API y el Batch publican; el Adaptador y Notificaciones consumen | Acoplamiento temporal con el Core y pico del corte (RNF-03.1 y RF-05.2) |
+| Retry con backoff exponencial y jitter | Resiliencia | Llamadas asíncronas al Core (consumo de DebitoSolicitado): 1 s, 2 s y 4 s más un valor aleatorio | Caídas por reintentos simultáneos (efecto estampida) |
+| Timeout | Resiliencia | Llamada síncrona de validación de cuenta: 2 s, sin reintentos con espera | Que una respuesta lenta del Core no rompa el p95 de la API (RNF-01.1) |
+| Paginación y filtrado | Consumo | GET /v1/planes-ahorro (offset) y GET /v1/planes-ahorro/{planId}/movimientos (cursor) | Respuestas grandes y desplazamiento del offset (RF-01.4 y RF-01.5) |
+| Caché HTTP | Consumo | GET /v1/simulaciones con Cache-Control | La misma entrada da el mismo resultado; baja la latencia (RNF-01.1) |
+| Publicación / suscripción | Estilo EDA | La API y el Batch publican; el Adaptador, el Batch y Notificaciones consumen | Acoplamiento temporal con el Core y pico del corte (RNF-03.1 y RF-05.2) |
+| Transactional Outbox | Integración | Tabla outbox en PostgreSQL, en la API y el Batch | Que nunca quede un cambio guardado sin su evento ni un evento publicado de un cambio que no se guardó (RNF-02.3) |
+| Consumidor idempotente | Resiliencia | Todos los consumidores de RabbitMQ, usando el correlation-id | El broker puede entregar un mensaje más de una vez; un duplicado no debe generar un segundo débito ni un segundo asiento |
 | Ledger de solo inserción | Persistencia | Tabla ledger en PostgreSQL | Auditoría inmutable; el saldo se obtiene sumando movimientos (RNF-03.3) |
-| Idempotency-Key | Resiliencia | POST /planes/{id}/aportes | Evita que un reintento del cliente genere un segundo débito |
+| Idempotency-Key | Resiliencia | POST /v1/planes-ahorro y POST /v1/planes-ahorro/{planId}/aportes | Evita que un reintento del cliente cree un plan duplicado o genere un segundo débito |
 
 *Tabla 5. Patrones aplicados*
 
@@ -152,23 +162,69 @@ El Circuit Breaker del Adaptador sigue la máquina de estados que se estudió en
 
 Durante el análisis nos dimos cuenta de que había que diferenciar dos tipos de reintento. El reintento técnico (Retry con jitter) repite en cuestión de segundos una llamada que falló por red o por timeout. El reintento de negocio (RF-03.1), en cambio, lo programa el Batch cada 24 horas, hasta cinco veces, cuando el Core rechaza el cargo. Con esta separación respondimos una pregunta que había quedado abierta en el tablero de ideación: un error técnico del banco no le consume al cliente ninguno de sus cinco intentos.
 
+También distinguimos los dos caminos que llegan al Core, porque no toleran la misma espera:
+
+| Camino | Quién espera | Resiliencia aplicada |
+|---|---|---|
+| Síncrono: validar titularidad y saldo de la cuenta origen | El cliente, en línea | Timeout de 2 s y Circuit Breaker, sin reintentos con espera. Si falla, la API responde 503 y el cliente puede volver a intentar |
+| Asíncrono: ejecutar el débito al consumir DebitoSolicitado | Nadie en línea | Circuit Breaker y Retry con backoff de 1 s, 2 s y 4 s más jitter. Si se agotan, se publica DebitoFallido con causa técnica |
+
+*Tabla 6. Resiliencia según el camino hacia el Core*
+
+Aplicar el backoff completo en el camino síncrono habría hecho que una sola validación fallida tardara más de 7 segundos, incompatible con el p95 menor a 500 ms (RNF-01.1).
+
+Ambas políticas se componen con los decoradores de Resilience4j en el orden Retry → Circuit Breaker → Logging → adaptador. El Retry va por fuera para que cada intento cuente como una llamada en la ventana del Circuit Breaker; cuando el circuito está abierto, el Retry no reintenta y el fallo se devuelve de inmediato.
+
 ### 4.3 Paginación y filtrado
 
 Usamos las dos estrategias de paginación vistas en la Unidad 3, cada una donde encaja mejor. Para los planes elegimos offset, porque cada cliente tiene pocos y así puede saltar a una página específica. Para los movimientos elegimos cursor, porque crecen sin límite y los registros nuevos del ledger desplazarían los resultados si usáramos offset.
 
 ```http
-GET /planes?estado=ACTIVO&page=0&size=10
-GET /planes/{id}/movimientos?cursor=eyJpZCI6MTIwfQ&limit=20
+GET /v1/planes-ahorro?estado=ACTIVO&pagina=1&limite=10
+GET /v1/planes-ahorro/{planId}/movimientos?cursor=eyJpZCI6MTIwfQ&limite=20
 
-{ "items": [ { "id": 120, "tipo": "DEBITO", "monto": 50.00 } ],
+{ "items": [ { "id": 120, "tipo": "DEBITO", "montoCentavos": 5000, "moneda": "USD" } ],
   "siguienteCursor": "eyJpZCI6MTAwfQ", "hayMas": true }
 ```
+
+Siguiendo lo definido en la anatomía de la API (Fase 1), los montos viajan como enteros en centavos junto con su código de moneda ISO 4217, para evitar errores de redondeo con decimales.
 
 ### 4.4 Seguridad en el borde
 
 Optamos por un servicio de autenticación propio basado en JWT. Este servicio verifica las credenciales del cliente (guardadas con hash bcrypt) y emite un access token firmado con RS256, válido por 15 minutos, junto con un refresh token. El Gateway valida la firma y la expiración con la clave pública, sin consultar al servicio en cada petición, lo que ayuda a mantener bajo el tiempo de respuesta. Los roles (CLIENTE, OPERADOR y AUDITOR) viajan en los claims del token y, además, la API verifica que el plan pertenezca al cliente que hace la solicitud.
 
-### 4.5 Patrones evaluados y descartados
+### 4.5 Patrones de diseño a nivel de código
+
+Los patrones anteriores definen cómo se relacionan los contenedores. Para implementarlos dentro de cada contenedor aplicamos cinco patrones de diseño clásicos (Gamma et al., 1994). El detalle de cada uno está en el documento PATRONES-DISENO.md; aquí resumimos dónde se aplican y qué decisión de arquitectura sostienen.
+
+| Patrón | Dónde | Decisión de arquitectura que implementa |
+|---|---|---|
+| Adapter | Adaptador Core: puerto CoreBancarioPort con dos implementaciones, CoreLegacyAdapter (habla con el Core) y CoreSimuladoAdapter (respuestas en memoria para pruebas unitarias) | Fachada / Adaptador: si el Core cambia, solo cambia el adaptador (RNF-03.1) |
+| Decorator | Adaptador Core: Retry → Circuit Breaker → Logging envolviendo al adaptador | Circuit Breaker, Retry y Timeout se agregan por composición, sin modificar el adaptador (RNF-03.2) |
+| Strategy | Ahorro Core API: CalculoInteresStrategy (tasa base o con bono por bloqueo) y PoliticaCancelacionStrategy (con o sin pérdida de intereses) | La simulación pública y el plan real usan el mismo cálculo (RF-02.1, RF-01.6, RF-04.2) |
+| State | Ahorro Core API (ciclo de vida del plan) y Batch Processor (ciclo de vida del débito) | Las transiciones inválidas se traducen en 409 Conflict; la política de cinco intentos queda en un solo lugar (RF-03.1) |
+| Observer | Eventos de dominio de Spring dentro de cada servicio, enviados al broker a través de la outbox | Publicación / suscripción y Transactional Outbox (RNF-03.1, RF-05.2) |
+
+*Tabla 7. Patrones de diseño a nivel de código*
+
+El patrón State modela estas transiciones:
+
+- **Plan:** ACTIVO → COMPLETADO cuando el saldo alcanza la meta, y ACTIVO → CANCELADO a pedido del cliente. COMPLETADO y CANCELADO son estados finales: no admiten aportes ni cancelación.
+- **Débito:** PENDIENTE → EJECUTADO, o PENDIENTE → FALLIDO cuando el Core rechaza el cargo. Un débito automático fallido se reprograma a las 24 horas hasta cinco intentos; al quinto, la cuota se cancela y el plazo del plan se extiende un mes, como define la regla de cobranza de la Fase 1. Un aporte bajo solicitud no se reprograma: si falla, el cliente ve el estado FALLIDO y decide si lo vuelve a pedir.
+
+La Tabla 8 muestra quién publica y quién consume cada evento. El Batch Processor consume el resultado de los dos tipos de débito y lo registra en el ledger, así que el asiento contable se implementa una sola vez:
+
+| Publica | Evento | Consume |
+|---|---|---|
+| Ahorro Core API | PlanCreado, PlanCancelado | Sistema de Notificaciones |
+| Ahorro Core API (aporte bajo solicitud) y Batch Processor (débito automático) | DebitoSolicitado | Adaptador Core |
+| Adaptador Core | DebitoEjecutado, DebitoFallido | Batch Processor (registro en el ledger y reintentos) y Sistema de Notificaciones |
+
+*Tabla 8. Eventos del sistema*
+
+Para que State y Strategy apliquen también en el Batch, el procedimiento almacenado sp_procesar_debitos_ahorro_programado() se limita a seleccionar los débitos del día. Las transiciones de estado, los reintentos y los cálculos quedan en código Java, donde se pueden cubrir con pruebas unitarias.
+
+### 4.6 Patrones evaluados y descartados
 
 También evaluamos otros patrones del catálogo de la unidad que, por ahora, no se justifican en el proyecto:
 
@@ -180,7 +236,7 @@ También evaluamos otros patrones del catálogo de la unidad que, por ahora, no 
 | API Composition | No hay varios servicios internos cuyas respuestas haya que combinar. |
 | Strangler Fig | No reemplazamos funcionalidades del Core; el módulo es nuevo y convive con él a través del adaptador. |
 
-*Tabla 6. Patrones descartados*
+*Tabla 9. Patrones descartados*
 
 ## 5. Conclusiones
 
@@ -190,8 +246,11 @@ Procuramos que cada patrón respondiera a un requisito concreto y no aplicar pat
 
 Un resultado que no esperábamos al inicio fue que los dos tipos de débito pudieran compartir el mismo evento. Gracias a eso, la resiliencia y la auditoría se implementan una sola vez para ambos casos.
 
+Por último, bajar las decisiones al nivel de código con Adapter, Decorator, Strategy, State y Observer nos obligó a precisar dos puntos que el diagrama dejaba abiertos: la resiliencia no puede ser la misma en el camino síncrono que en el asíncrono, y la publicación de eventos necesita una outbox para no romper la consistencia que exige el saldo.
+
 ## 6. Referencias
 
+- Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design patterns: Elements of reusable object-oriented software*. Addison-Wesley.
 - International Organization for Standardization. (2011). *ISO/IEC 25010:2011 Systems and software engineering: Systems and software Quality Requirements and Evaluation (SQuaRE)*. ISO.
 - Jones, M., Bradley, J., & Sakimura, N. (2015). *JSON Web Token (JWT)*. RFC 7519. Internet Engineering Task Force.
 - Nygard, M. T. (2018). *Release It! Design and deploy production-ready software* (2.ª ed.). Pragmatic Bookshelf.
