@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("pablo.jara@email.com");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
     if (hasHydrated && usuario) {
@@ -20,12 +21,14 @@ export default function LoginPage() {
     }
   }, [hasHydrated, usuario, router]);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const ok = login(email, password);
-    if (!ok) {
-      setError("Email o contraseña incorrectos.");
+    setEnviando(true);
+    const mensaje = await login(email, password);
+    setEnviando(false);
+    if (mensaje) {
+      setError(mensaje);
       return;
     }
     router.push("/dashboard");
@@ -62,7 +65,7 @@ export default function LoginPage() {
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="tu.email@galicia.com.ar"
+              placeholder="tu.email@ejemplo.com"
               className="bg-surface-container-low text-on-surface text-sm rounded-sm px-4 py-3 outline-none focus:ring-2 focus:ring-primary/30"
             />
           </div>
@@ -90,9 +93,10 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            className="inline-flex items-center justify-center gap-2 bg-primary text-on-primary font-semibold text-sm px-6 py-3 rounded-sm hover:bg-primary-dark transition-colors shadow-sm active:scale-[0.99]"
+            disabled={enviando}
+            className="disabled:opacity-60 disabled:cursor-wait inline-flex items-center justify-center gap-2 bg-primary text-on-primary font-semibold text-sm px-6 py-3 rounded-sm hover:bg-primary-dark transition-colors shadow-sm active:scale-[0.99]"
           >
-            Ingresar
+            {enviando ? "Ingresando…" : "Ingresar"}
           </button>
 
           <div className="flex items-center gap-2.5 bg-info-container px-4 py-3 rounded-sm">

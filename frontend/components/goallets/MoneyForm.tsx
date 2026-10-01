@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlanAhorro } from "@/lib/types";
 import { useGoalletStore } from "@/lib/store";
@@ -23,21 +23,30 @@ export function MoneyForm({
   const [monto, setMonto] = useState<number | null>(null);
   const [cuentaId, setCuentaId] = useState(goallet.cuentaDebito.id);
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+
+  useEffect(() => {
+    void useGoalletStore.getState().cargarCuentas();
+  }, []);
 
   const esAporte = modo === "aportar";
   const disponible = goallet.bloqueado ? 0 : goallet.saldoDisponibleCentavos;
   const cuentaSeleccionada = cuentas.find((c) => c.id === cuentaId);
 
-  function handleSubmit(e: React.FormEvent) {
+  // La API responde 202: el store espera a que el Core confirme o rechace el movimiento.
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!monto || monto <= 0) {
       setError("Ingresa un monto válido.");
       return;
     }
+    setError(null);
+    setEnviando(true);
     const centavos = dolaresACentavos(monto);
     const r = esAporte
-      ? aportar(goallet.id, centavos, cuentaId)
-      : retirar(goallet.id, centavos, cuentaId);
+      ? await aportar(goallet.id, centavos, cuentaId)
+      : await retirar(goallet.id, centavos, cuentaId);
+    setEnviando(false);
     if (!r.ok) {
       setError(r.mensaje);
       return;
@@ -110,10 +119,10 @@ export function MoneyForm({
 
       <button
         type="submit"
-        disabled={!esAporte && goallet.bloqueado}
+        disabled={enviando || (!esAporte && goallet.bloqueado)}
         className="inline-flex items-center justify-center gap-2 bg-primary text-on-primary font-semibold text-sm px-6 py-3 rounded-sm hover:bg-primary-dark transition-colors shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        Confirmar {esAporte ? "aporte" : "retiro"}
+        {enviando ? "Esperando la confirmación del banco…" : `Confirmar ${esAporte ? "aporte" : "retiro"}`}
       </button>
     </form>
   );

@@ -1,33 +1,34 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppFooter } from "@/components/layout/AppFooter";
+import { RequireAuth } from "@/components/auth/RequireAuth";
 import { MoneyForm } from "@/components/goallets/MoneyForm";
 import { useGoalletStore } from "@/lib/store";
 
-export default function AportarPage() {
+function Contenido() {
   const { id } = useParams<{ id: string }>();
   const goallet = useGoalletStore((s) => s.planes.find((p) => p.id === id));
+  const [cargado, setCargado] = useState(false);
+
+  useEffect(() => {
+    void useGoalletStore.getState().cargarPlan(id).finally(() => setCargado(true));
+  }, [id]);
 
   if (!goallet) {
     return (
-      <>
-        <AppHeader />
-        <main className="flex-1 w-full">
-          <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 text-center">
-            <p className="text-on-surface-variant">No encontramos ese Goallet.</p>
-          </div>
-        </main>
-        <AppFooter />
-      </>
+      <main className="flex-1 w-full">
+        <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 text-center">
+          <p className="text-on-surface-variant">{cargado ? "No encontramos ese Goallet." : "Cargando…"}</p>
+        </div>
+      </main>
     );
   }
 
   return (
-    <>
-      <AppHeader />
       <main className="flex-1 w-full">
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-5">
           <Link
@@ -43,6 +44,16 @@ export default function AportarPage() {
           <MoneyForm goallet={goallet} modo="aportar" />
         </div>
       </main>
+  );
+}
+
+export default function AportarPage() {
+  return (
+    <>
+      <AppHeader />
+      <RequireAuth>
+        <Contenido />
+      </RequireAuth>
       <AppFooter />
     </>
   );

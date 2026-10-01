@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppFooter } from "@/components/layout/AppFooter";
@@ -16,7 +17,15 @@ function DashboardContent() {
   const usuario = useAuthStore((s) => s.usuario);
   const planes = useGoalletStore((s) => s.planes);
   const cuentas = useGoalletStore((s) => s.cuentas);
-  const resumen = useGoalletStore((s) => s.resumen)();
+  const resumen = useGoalletStore((s) => s.resumen);
+  const planesCargados = useGoalletStore((s) => s.planesCargados);
+  const error = useGoalletStore((s) => s.error);
+
+  useEffect(() => {
+    const { cargarPlanes, cargarCuentas } = useGoalletStore.getState();
+    void cargarPlanes();
+    void cargarCuentas();
+  }, []);
 
   if (!usuario) return null;
 
@@ -35,6 +44,10 @@ function DashboardContent() {
           </p>
         </div>
 
+        {error && (
+          <p className="text-sm bg-error-container text-on-error-container rounded-sm px-4 py-3">{error}</p>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="bg-surface-container-lowest rounded-lg p-6 shadow-sm flex flex-col gap-1">
             <span className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
@@ -49,7 +62,7 @@ function DashboardContent() {
               Total ahorrado en Goallets
             </span>
             <span className="font-headline text-currency text-on-surface">
-              {formatCentavos(resumen.totalAhorradoCentavos)}
+              {formatCentavos(resumen?.totalAhorradoCentavos ?? 0)}
             </span>
           </div>
         </div>
@@ -80,7 +93,9 @@ function DashboardContent() {
             </Link>
           </div>
 
-          {goalletsDestacados.length === 0 ? (
+          {!planesCargados ? (
+            <p className="text-sm text-on-surface-variant">Cargando tus Goallets…</p>
+          ) : goalletsDestacados.length === 0 ? (
             <div className="bg-surface-container-lowest rounded-lg p-8 shadow-sm text-center flex flex-col items-center gap-3">
               <span className="material-symbols-outlined text-[36px] text-primary">savings</span>
               <p className="text-on-surface-variant">Todavía no has creado ningún Goallet.</p>

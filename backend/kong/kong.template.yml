@@ -49,6 +49,8 @@ services:
               key_claim_name: iss
               claims_to_verify: [exp]
               header_names: [authorization]
+              # La verificación CORS del navegador (OPTIONS) no lleva token: la atiende el plugin cors.
+              run_on_preflight: false
           - name: rate-limiting
             config: { minute: 60000, policy: local, limit_by: ip }
 

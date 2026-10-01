@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppFooter } from "@/components/layout/AppFooter";
@@ -10,7 +11,13 @@ import { formatCentavos } from "@/lib/format";
 
 function GoalletsContent() {
   const goallets = useGoalletStore((s) => s.planes);
-  const resumen = useGoalletStore((s) => s.resumen)();
+  const resumen = useGoalletStore((s) => s.resumen);
+  const planesCargados = useGoalletStore((s) => s.planesCargados);
+  const error = useGoalletStore((s) => s.error);
+
+  useEffect(() => {
+    void useGoalletStore.getState().cargarPlanes();
+  }, []);
 
   return (
       <main className="flex-1 w-full">
@@ -47,19 +54,25 @@ function GoalletsContent() {
               </span>
               <div className="flex items-baseline gap-2 mt-1">
                 <span className="font-headline text-currency text-on-surface">
-                  {formatCentavos(resumen.totalAhorradoCentavos)}
+                  {formatCentavos(resumen?.totalAhorradoCentavos ?? 0)}
                 </span>
                 <span className="text-sm text-on-surface-variant">
-                  de {formatCentavos(resumen.totalMetaCentavos)} en metas
+                  de {formatCentavos(resumen?.totalMetaCentavos ?? 0)} en metas
                 </span>
               </div>
             </div>
             <span className="text-sm text-on-surface-variant">
-              {resumen.planesActivos} {resumen.planesActivos === 1 ? "Goallet activo" : "Goallets activos"}
+              {resumen?.planesActivos ?? 0} {resumen?.planesActivos === 1 ? "Goallet activo" : "Goallets activos"}
             </span>
           </div>
 
-          {goallets.length === 0 ? (
+          {error && (
+            <p className="text-sm bg-error-container text-on-error-container rounded-sm px-4 py-3">{error}</p>
+          )}
+
+          {!planesCargados ? (
+            <p className="text-sm text-on-surface-variant">Cargando tus Goallets…</p>
+          ) : goallets.length === 0 ? (
             <div className="bg-surface-container-lowest rounded-lg p-10 shadow-sm text-center flex flex-col items-center gap-3">
               <span className="material-symbols-outlined text-[40px] text-primary">savings</span>
               <p className="text-on-surface-variant">Todavía no has creado ningún Goallet.</p>

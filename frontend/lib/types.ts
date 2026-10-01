@@ -135,3 +135,16 @@ export interface TarjetaCredito {
   colorDesde: string;
   colorHasta: string;
 }
+
+export interface TramoTarifa {
+  plazoMinimoMeses: number;
+  plazoMaximoMeses?: number | null;
+  tasaBaseAnual: number;
+  bonoBloqueoAnual: number;
+}
+
+export interface TablaTarifas {
+  moneda: Moneda;
+  vigenteDesde: string;
+  tramos: TramoTarifa[];
+}

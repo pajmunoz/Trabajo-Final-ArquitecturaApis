@@ -10,13 +10,17 @@ export function UnlockFundsPanel({ goallet }: { goallet: PlanAhorro }) {
   const desbloquear = useGoalletStore((s) => s.desbloquear);
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
   const tasaActual = goallet.tasas.totalAnual;
   const tasaFinal = goallet.tasas.baseAnual;
   const perdida = goallet.interesesDevengadosCentavos;
 
-  function confirmar() {
-    const r = desbloquear(goallet.id);
+  async function confirmar() {
+    setError(null);
+    setEnviando(true);
+    const r = await desbloquear(goallet.id);
+    setEnviando(false);
     if (!r.ok) {
       setError(r.mensaje);
       return;
@@ -72,8 +76,9 @@ export function UnlockFundsPanel({ goallet }: { goallet: PlanAhorro }) {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={confirmar}
-              className="inline-flex items-center gap-2 bg-error text-white text-sm font-semibold px-4 py-2.5 rounded-sm hover:bg-error/90 transition-colors"
+              onClick={() => void confirmar()}
+              disabled={enviando}
+              className="disabled:opacity-60 disabled:cursor-wait inline-flex items-center gap-2 bg-error text-white text-sm font-semibold px-4 py-2.5 rounded-sm hover:bg-error/90 transition-colors"
             >
               Confirmar desbloqueo
             </button>

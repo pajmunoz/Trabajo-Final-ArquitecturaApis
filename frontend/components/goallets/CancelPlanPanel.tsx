@@ -12,12 +12,16 @@ export function CancelPlanPanel({ goallet }: { goallet: PlanAhorro }) {
   const [confirmando, setConfirmando] = useState(false);
   const [cuentaId, setCuentaId] = useState(goallet.cuentaDebito.id);
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
   const perdida = goallet.bloqueado ? goallet.interesesDevengadosCentavos : 0;
   const aDevolver = goallet.saldoCentavos - perdida;
 
-  function confirmar() {
-    const r = cancelar(goallet.id, cuentaId);
+  async function confirmar() {
+    setError(null);
+    setEnviando(true);
+    const r = await cancelar(goallet.id, cuentaId);
+    setEnviando(false);
     if (!r.ok) {
       setError(r.mensaje);
       return;
@@ -76,8 +80,9 @@ export function CancelPlanPanel({ goallet }: { goallet: PlanAhorro }) {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={confirmar}
-              className="inline-flex items-center gap-2 bg-error text-white text-sm font-semibold px-4 py-2.5 rounded-sm hover:bg-error/90 transition-colors"
+              onClick={() => void confirmar()}
+              disabled={enviando}
+              className="disabled:opacity-60 disabled:cursor-wait inline-flex items-center gap-2 bg-error text-white text-sm font-semibold px-4 py-2.5 rounded-sm hover:bg-error/90 transition-colors"
             >
               Confirmar cancelación
             </button>

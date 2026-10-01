@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -12,7 +13,6 @@ import { ProgressBar } from "@/components/goallets/ProgressBar";
 import { TransactionRow } from "@/components/goallets/TransactionRow";
 import { UnlockFundsPanel } from "@/components/goallets/UnlockFundsPanel";
 import { useGoalletStore } from "@/lib/store";
-import { calcularTasas } from "@/lib/finance";
 import { cuentaEtiqueta, formatCentavos, formatDate, formatTasa } from "@/lib/format";
 import type { Movimiento } from "@/lib/types";
 
@@ -21,8 +21,32 @@ const SIN_MOVIMIENTOS: Movimiento[] = [];
 function GoalletDetailContent() {
   const { id } = useParams<{ id: string }>();
   const goallet = useGoalletStore((s) => s.planes.find((p) => p.id === id));
-  const movimientos = useGoalletStore((s) => s.movimientos[id] ?? SIN_MOVIMIENTOS);
+  const historial = useGoalletStore((s) => s.historial[id]);
+  const movimientos = historial?.items ?? SIN_MOVIMIENTOS;
+  const tarifas = useGoalletStore((s) => s.tarifas);
   const bloquear = useGoalletStore((s) => s.bloquear);
+  const cargarMovimientos = useGoalletStore((s) => s.cargarMovimientos);
+  const [cargado, setCargado] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
+
+  useEffect(() => {
+    const { cargarPlan, cargarMovimientos, cargarTarifas, cargarCuentas } = useGoalletStore.getState();
+    void Promise.all([cargarPlan(id), cargarMovimientos(id), cargarTarifas(), cargarCuentas()]).finally(() => setCargado(true));
+  }, [id]);
+
+  async function handleBloquear(planId: string) {
+    setAviso(null);
+    const r = await bloquear(planId);
+    if (!r.ok) setAviso(r.mensaje);
+  }
+
+  if (!goallet && !cargado) {
+    return (
+      <main className="flex-1 w-full flex items-center justify-center py-24">
+        <span className="material-symbols-outlined text-[32px] text-primary animate-spin">progress_activity</span>
+      </main>
+    );
+  }
 
   if (!goallet) {
     return (
@@ -39,7 +63,13 @@ function GoalletDetailContent() {
 
   const activo = goallet.estado === "ACTIVO";
   const faltante = Math.max(0, goallet.montoMetaCentavos - goallet.saldoCentavos);
-  const bonoDisponible = calcularTasas(goallet.plazoMeses, true).bonoBloqueoAnual;
+  // Bono por bloqueo del tramo del plan, según GET /v1/tarifas.
+  const bonoDisponible =
+    tarifas?.tramos.find(
+      (t) =>
+        goallet.plazoMeses >= t.plazoMinimoMeses &&
+        (t.plazoMaximoMeses == null || goallet.plazoMeses <= t.plazoMaximoMeses)
+    )?.bonoBloqueoAnual ?? null;
   const prorrogado = goallet.fechaFinEstimada !== goallet.fechaObjetivo;
 
   return (
@@ -132,12 +162,14 @@ function GoalletDetailContent() {
                   titulo: "Blinda tu tasa",
                   descripcion: goallet.bloqueado
                     ? `Fondos bloqueados con ${formatTasa(goallet.tasas.totalAnual)} TNA (base ${formatTasa(goallet.tasas.baseAnual)} + bono ${formatTasa(goallet.tasas.bonoBloqueoAnual)}).`
-                    : `Bloquea tus fondos y suma ${formatTasa(bonoDisponible)} de TNA a tu tasa actual de ${formatTasa(goallet.tasas.totalAnual)}.`,
+                    : bonoDisponible !== null
+                      ? `Bloquea tus fondos y suma ${formatTasa(bonoDisponible)} de TNA a tu tasa actual de ${formatTasa(goallet.tasas.totalAnual)}.`
+                      : `Bloquea tus fondos y gana una tasa preferencial sobre tu ${formatTasa(goallet.tasas.totalAnual)} actual.`,
                   icono: "lock_clock",
                   activo: goallet.bloqueado,
                   etiqueta: goallet.bloqueado ? "ACTIVO" : "DISPONIBLE",
                 }}
-                onToggle={activo && !goallet.bloqueado ? () => bloquear(goallet.id) : undefined}
+                onToggle={activo && !goallet.bloqueado ? () => void handleBloquear(goallet.id) : undefined}
                 ayuda={
                   activo && goallet.bloqueado
                     ? "Para salir del bloqueo, usa “Desbloquear fondos”."
@@ -145,6 +177,9 @@ function GoalletDetailContent() {
                 }
               />
             </div>
+            {aviso && (
+              <p className="text-sm bg-error-container text-on-error-container rounded-sm px-4 py-3">{aviso}</p>
+            )}
           </div>
 
           <div className="bg-surface-container-lowest rounded-lg p-6 shadow-sm flex flex-col gap-3">
@@ -160,6 +195,15 @@ function GoalletDetailContent() {
                   <TransactionRow key={movimiento.id} movimiento={movimiento} />
                 ))}
               </div>
+            )}
+            {historial?.hayMas && (
+              <button
+                type="button"
+                onClick={() => void cargarMovimientos(goallet.id, true)}
+                className="self-center text-sm font-semibold text-primary hover:underline"
+              >
+                Ver movimientos anteriores
+              </button>
             )}
           </div>
 

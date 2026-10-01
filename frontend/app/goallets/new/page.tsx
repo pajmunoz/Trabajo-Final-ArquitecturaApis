@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -8,9 +8,10 @@ import { AppFooter } from "@/components/layout/AppFooter";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { useGoalletStore } from "@/lib/store";
 import { iconosDisponibles } from "@/lib/mock-data";
-import { hoyISO, simular, sumarMeses } from "@/lib/finance";
+import { hoyISO, sumarMeses } from "@/lib/fechas";
+import { api } from "@/lib/api";
 import { cuentaEtiqueta, dolaresACentavos, formatCentavos, formatTasa } from "@/lib/format";
-import type { Icono } from "@/lib/types";
+import type { Icono, Simulacion } from "@/lib/types";
 
 const DIAS_DEBITO = Array.from({ length: 28 }, (_, i) => i + 1);
 
@@ -28,18 +29,43 @@ function NuevoGoalletContent() {
   const [montoMeta, setMontoMeta] = useState("");
   const [fechaObjetivo, setFechaObjetivo] = useState("");
   const [diaDebito, setDiaDebito] = useState(1);
-  const [cuentaDebitoId, setCuentaDebitoId] = useState(cuentas[0]?.id ?? "");
+  const [cuentaElegida, setCuentaDebitoId] = useState("");
   const [bloqueado, setBloqueado] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [simulacion, setSimulacion] = useState<Simulacion | null>(null);
 
+  const cuentaDebitoId = cuentaElegida || cuentas[0]?.id || "";
   const montoMetaCentavos = dolaresACentavos(Number(montoMeta) || 0);
-  // Equivalente a GET /v1/simulaciones: la cuota la calcula el sistema, no el usuario.
-  const simulacion = useMemo(
-    () => (fechaObjetivo ? simular(montoMetaCentavos, fechaObjetivo, bloqueado) : null),
-    [montoMetaCentavos, fechaObjetivo, bloqueado]
-  );
 
-  function handleSubmit(e: React.FormEvent) {
+  useEffect(() => {
+    void useGoalletStore.getState().cargarCuentas();
+  }, []);
+
+  // GET /v1/simulaciones: la cuota y las tasas las calcula el servidor. Se espera a
+  // que el usuario deje de escribir para no consumir el límite de peticiones.
+  useEffect(() => {
+    if (!fechaObjetivo || montoMetaCentavos < 1) return;
+    let vigente = true;
+    const temporizador = setTimeout(() => {
+      const params = new URLSearchParams({
+        montoMetaCentavos: String(montoMetaCentavos),
+        fechaObjetivo,
+        bloqueado: String(bloqueado),
+      });
+      api<Simulacion>(`/v1/simulaciones?${params}`, { autenticado: false })
+        .then((sim) => vigente && setSimulacion(sim))
+        .catch(() => vigente && setSimulacion(null));
+    }, 400);
+    return () => {
+      vigente = false;
+      clearTimeout(temporizador);
+    };
+  }, [montoMetaCentavos, fechaObjetivo, bloqueado]);
+
+  const simulacionVigente = fechaObjetivo && montoMetaCentavos >= 1 ? simulacion : null;
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!nombre.trim()) {
       setError("Ponle un nombre a tu Goallet.");
@@ -54,7 +80,9 @@ function NuevoGoalletContent() {
       return;
     }
 
-    const r = crearPlan({
+    setError(null);
+    setEnviando(true);
+    const r = await crearPlan({
       nombre: nombre.trim(),
       objetivo: objetivo.trim() || undefined,
       icono,
@@ -64,6 +92,7 @@ function NuevoGoalletContent() {
       cuentaDebitoId,
       bloqueado,
     });
+    setEnviando(false);
     if (!r.ok) {
       setError(r.mensaje);
       return;
@@ -223,21 +252,21 @@ function NuevoGoalletContent() {
               </span>
             </label>
 
-            {simulacion && (
+            {simulacionVigente && (
               <div className="flex flex-col gap-2 bg-info-container rounded-sm px-4 py-3">
                 <span className="text-xs font-bold uppercase tracking-wide text-on-info-container">
                   Tu plan
                 </span>
                 <p className="text-sm text-on-info-container">
                   Aporte mensual de{" "}
-                  <span className="font-semibold">{formatCentavos(simulacion.cuotaMensualCentavos)}</span>{" "}
-                  durante {simulacion.plazoMeses} {simulacion.plazoMeses === 1 ? "mes" : "meses"}, a{" "}
-                  <span className="font-semibold">{formatTasa(simulacion.tasas.totalAnual)} TNA</span> (
-                  {formatTasa(simulacion.tasas.efectivaAnual)} TEA).
+                  <span className="font-semibold">{formatCentavos(simulacionVigente.cuotaMensualCentavos)}</span>{" "}
+                  durante {simulacionVigente.plazoMeses} {simulacionVigente.plazoMeses === 1 ? "mes" : "meses"}, a{" "}
+                  <span className="font-semibold">{formatTasa(simulacionVigente.tasas.totalAnual)} TNA</span> (
+                  {formatTasa(simulacionVigente.tasas.efectivaAnual)} TEA).
                 </p>
                 <p className="text-xs text-on-info-container">
-                  Aportarás {formatCentavos(simulacion.totalAportadoCentavos)} y ganarás{" "}
-                  {formatCentavos(simulacion.interesesProyectadosCentavos)} en intereses.
+                  Aportarás {formatCentavos(simulacionVigente.totalAportadoCentavos)} y ganarás{" "}
+                  {formatCentavos(simulacionVigente.interesesProyectadosCentavos)} en intereses.
                 </p>
               </div>
             )}
@@ -250,9 +279,10 @@ function NuevoGoalletContent() {
 
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 bg-primary text-on-primary font-semibold text-sm px-6 py-3 rounded-sm hover:bg-primary-dark transition-colors shadow-sm active:scale-[0.99]"
+              disabled={enviando}
+              className="disabled:opacity-60 disabled:cursor-wait inline-flex items-center justify-center gap-2 bg-primary text-on-primary font-semibold text-sm px-6 py-3 rounded-sm hover:bg-primary-dark transition-colors shadow-sm active:scale-[0.99]"
             >
-              Crear Goallet
+              {enviando ? "Creando…" : "Crear Goallet"}
             </button>
           </form>
         </div>

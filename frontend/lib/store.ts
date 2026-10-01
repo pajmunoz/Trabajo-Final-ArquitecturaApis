@@ -1,352 +1,263 @@
-// Store local que imita a la API mientras el front no está conectado. Cada acción
-// corresponde a una operación de contracts/openapi.yaml y aplica sus mismas reglas
-// de negocio y códigos de error, para que el cambio a llamadas HTTP sea directo.
+// Estado del front conectado a la API (contracts/openapi.yaml). Cada acción llama a
+// un endpoint; los aportes y retiros son asíncronos (202): se consulta su estado
+// hasta que el Core los confirma y luego se recargan el plan, el historial y las cuentas.
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import {
-  calcularProgreso,
-  calcularTasas,
-  hoyISO,
-  proximoDebito,
-  simular,
-  tasaEfectiva,
-  tasasSinBloqueo,
-} from "./finance";
-import { cuentasIniciales, movimientosIniciales, planesIniciales } from "./mock-data";
+import { api, ApiError, solicitud } from "./api";
 import type {
   CrearPlanAhorro,
   CuentaDebito,
+  EstadoDebito,
   Movimiento,
   PlanAhorro,
   ResumenPlanes,
-  TipoMovimiento,
+  TablaTarifas,
 } from "./types";
-import { cuentaEtiqueta } from "./format";
 
 export type Resultado<T = undefined> =
-  | ({ ok: true } & (T extends undefined ? object : { valor: T }))
+  | ({ ok: true; aviso?: string } & (T extends undefined ? object : { valor: T }))
   | { ok: false; codigo: string; mensaje: string };
 
-function error(codigo: string, mensaje: string) {
-  return { ok: false as const, codigo, mensaje };
+type Fallo = { ok: false; codigo: string; mensaje: string };
+
+function fallo(error: unknown): Fallo {
+  if (error instanceof ApiError) return { ok: false, codigo: error.codigo, mensaje: error.message };
+  return { ok: false, codigo: "ERROR", mensaje: "Ocurrió un error inesperado." };
 }
 
-function nuevoId() {
-  return crypto.randomUUID();
+interface PaginaOffset<T> {
+  items: T[];
+  pagina: number;
+  limite: number;
+  totalElementos: number;
+  totalPaginas: number;
 }
 
-function ahora() {
-  return new Date().toISOString();
+interface PaginaCursor<T> {
+  items: T[];
+  siguienteCursor: string | null;
+  hayMas: boolean;
 }
 
-function sinSaldo(cuenta: CuentaDebito): CuentaDebito {
-  const copia = { ...cuenta };
-  delete copia.saldoDisponibleCentavos;
-  return copia;
+interface OperacionCore {
+  id: string;
+  estado: EstadoDebito;
+  motivoFallo: string | null;
 }
 
-/** Asienta un movimiento en el ledger del plan y recalcula los campos derivados. */
-function asentar(
-  plan: PlanAhorro,
-  movimientos: Movimiento[],
-  tipo: TipoMovimiento,
-  montoCentavos: number,
-  descripcion: string,
-  origen: string
-) {
-  const saldoCentavos = plan.saldoCentavos + montoCentavos;
-  const movimiento: Movimiento = {
-    id: nuevoId(),
-    tipo,
-    montoCentavos,
-    moneda: plan.moneda,
-    saldoResultanteCentavos: saldoCentavos,
-    fecha: ahora(),
-    descripcion,
-    origen,
-  };
-  const actualizado: PlanAhorro = {
-    ...plan,
-    saldoCentavos,
-    saldoDisponibleCentavos: saldoCentavos,
-    progreso: calcularProgreso(saldoCentavos, plan.montoMetaCentavos),
-    actualizadoEn: movimiento.fecha,
-  };
-  return { plan: actualizado, movimientos: [movimiento, ...movimientos] };
+export interface HistorialPlan {
+  items: Movimiento[];
+  siguienteCursor: string | null;
+  hayMas: boolean;
+}
+
+const MOTIVOS: Record<string, string> = {
+  FONDOS_INSUFICIENTES: "La cuenta no tiene saldo suficiente.",
+  CUENTA_BLOQUEADA: "La cuenta está bloqueada en el banco.",
+  CORE_NO_DISPONIBLE: "El banco no estuvo disponible; intenta de nuevo más tarde.",
+};
+
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Consulta una operación asíncrona (aporte o retiro) hasta que deja de estar PENDIENTE. */
+async function esperarConfirmacion(ruta: string, limiteMs = 15_000): Promise<OperacionCore | null> {
+  const fin = Date.now() + limiteMs;
+  while (Date.now() < fin) {
+    await esperar(800);
+    const op = await api<OperacionCore>(ruta);
+    if (op.estado !== "PENDIENTE") return op;
+  }
+  return null;
 }
 
 interface GoalletStore {
   planes: PlanAhorro[];
-  movimientos: Record<string, Movimiento[]>;
+  resumen: ResumenPlanes | null;
   cuentas: CuentaDebito[];
+  tarifas: TablaTarifas | null;
+  historial: Record<string, HistorialPlan>;
+  planesCargados: boolean;
+  cargando: boolean;
+  error: string | null;
 
-  resumen: () => ResumenPlanes;
-  crearPlan: (input: CrearPlanAhorro) => Resultado<string>;
-  aportar: (planId: string, montoCentavos: number, cuentaOrigenId: string) => Resultado;
-  retirar: (planId: string, montoCentavos: number, cuentaDestinoId: string) => Resultado;
-  bloquear: (planId: string) => Resultado;
-  desbloquear: (planId: string) => Resultado<number>;
-  cancelar: (planId: string, cuentaDestinoId?: string) => Resultado<number>;
+  cargarPlanes: () => Promise<void>;
+  cargarPlan: (planId: string) => Promise<void>;
+  cargarCuentas: () => Promise<void>;
+  cargarTarifas: () => Promise<void>;
+  cargarMovimientos: (planId: string, siguiente?: boolean) => Promise<void>;
+  crearPlan: (input: CrearPlanAhorro) => Promise<Resultado<string>>;
+  aportar: (planId: string, montoCentavos: number, cuentaOrigenId: string) => Promise<Resultado>;
+  retirar: (planId: string, montoCentavos: number, cuentaDestinoId: string) => Promise<Resultado>;
+  bloquear: (planId: string) => Promise<Resultado>;
+  desbloquear: (planId: string) => Promise<Resultado<number>>;
+  cancelar: (planId: string, cuentaDestinoId?: string) => Promise<Resultado<number>>;
+  limpiar: () => void;
 }
 
-export const useGoalletStore = create<GoalletStore>()(
-  persist(
-    (set, get) => {
-      function buscarPlan(planId: string) {
-        return get().planes.find((p) => p.id === planId);
-      }
+export const useGoalletStore = create<GoalletStore>()((set, get) => {
+  const reemplazarPlan = (plan: PlanAhorro) =>
+    set((s) => ({
+      planes: s.planes.some((p) => p.id === plan.id)
+        ? s.planes.map((p) => (p.id === plan.id ? plan : p))
+        : [plan, ...s.planes],
+    }));
 
-      function buscarCuenta(cuentaId: string) {
-        return get().cuentas.find((c) => c.id === cuentaId);
-      }
+  /** Después de mover dinero cambian el plan, su historial, el resumen y los saldos de las cuentas. */
+  const refrescarTras = async (planId: string) => {
+    await Promise.all([get().cargarPlan(planId), get().cargarMovimientos(planId), get().cargarPlanes(), get().cargarCuentas()]);
+  };
 
-      function guardar(plan: PlanAhorro, movimientos: Movimiento[], cuentas = get().cuentas) {
-        set((state) => ({
-          planes: state.planes.map((p) => (p.id === plan.id ? plan : p)),
-          movimientos: { ...state.movimientos, [plan.id]: movimientos },
-          cuentas,
-        }));
+  /** POST que responde 202 + Location: espera la confirmación del Core. */
+  const moverDinero = async (planId: string, ruta: string, cuerpo: object): Promise<Resultado> => {
+    try {
+      const { headers, datos } = await solicitud<OperacionCore>(ruta, { metodo: "POST", cuerpo, idempotente: true });
+      const ubicacion = headers.get("Location") ?? `${ruta}/${datos.id}`;
+      const final = await esperarConfirmacion(ubicacion);
+      await refrescarTras(planId);
+      if (!final) return { ok: true, aviso: "El banco sigue procesando la operación; se reflejará en unos segundos." };
+      if (final.estado === "FALLIDO") {
+        const motivo = final.motivoFallo ?? "FALLIDO";
+        return { ok: false, codigo: motivo, mensaje: MOTIVOS[motivo] ?? "El banco rechazó la operación." };
       }
+      return { ok: true };
+    } catch (error) {
+      return fallo(error);
+    }
+  };
 
-      function moverSaldoCuenta(cuentaId: string, deltaCentavos: number) {
-        return get().cuentas.map((c) =>
-          c.id === cuentaId
-            ? { ...c, saldoDisponibleCentavos: (c.saldoDisponibleCentavos ?? 0) + deltaCentavos }
-            : c
+  return {
+    planes: [],
+    resumen: null,
+    cuentas: [],
+    tarifas: null,
+    historial: {},
+    planesCargados: false,
+    cargando: false,
+    error: null,
+
+    // GET /v1/planes-ahorro (paginación offset); incluye el resumen de todos los planes
+    cargarPlanes: async () => {
+      set({ cargando: true, error: null });
+      try {
+        const pagina = await api<PaginaOffset<PlanAhorro> & { resumen: ResumenPlanes }>(
+          "/v1/planes-ahorro?limite=50&orden=-creadoEn"
         );
+        set({ planes: pagina.items, resumen: pagina.resumen, planesCargados: true, cargando: false });
+      } catch (error) {
+        set({ cargando: false, error: fallo(error).mensaje });
       }
-
-      /** Si el plan estaba bloqueado, descuenta los intereses devengados (RF-01.7, RF-04.2). */
-      function aplicarSalidaBloqueo(plan: PlanAhorro, movimientos: Movimiento[], motivo: string) {
-        const perdidos = plan.bloqueado ? plan.interesesDevengadosCentavos : 0;
-        let resultado = { plan, movimientos };
-        if (perdidos > 0) {
-          resultado = asentar(plan, movimientos, "PENALIDAD", -perdidos, motivo, "Intereses devengados");
-        }
-        return {
-          plan: {
-            ...resultado.plan,
-            bloqueado: false,
-            bloqueadoDesde: null,
-            tasas: tasasSinBloqueo(plan.tasas),
-            interesesDevengadosCentavos: plan.bloqueado ? 0 : plan.interesesDevengadosCentavos,
-          },
-          movimientos: resultado.movimientos,
-          perdidos,
-        };
-      }
-
-      return {
-        planes: planesIniciales,
-        movimientos: movimientosIniciales,
-        cuentas: cuentasIniciales,
-
-        // GET /v1/planes-ahorro → resumen
-        resumen: () => {
-          const planes = get().planes.filter((p) => p.estado !== "CANCELADO");
-          return {
-            moneda: "USD",
-            totalAhorradoCentavos: planes.reduce((acc, p) => acc + p.saldoCentavos, 0),
-            totalMetaCentavos: planes.reduce((acc, p) => acc + p.montoMetaCentavos, 0),
-            cantidadPlanes: planes.length,
-            planesActivos: planes.filter((p) => p.estado === "ACTIVO").length,
-          };
-        },
-
-        // POST /v1/planes-ahorro
-        crearPlan: (input) => {
-          const cuenta = buscarCuenta(input.cuentaDebitoId);
-          if (!cuenta) return error("VALIDACION", "Elige una cuenta de débito válida.");
-          if (input.diaDebito < 1 || input.diaDebito > 28) {
-            return error("VALIDACION", "El día de débito debe estar entre 1 y 28.");
-          }
-          const simulacion = simular(input.montoMetaCentavos, input.fechaObjetivo, input.bloqueado);
-          if (!simulacion) {
-            return error("VALIDACION", "La fecha objetivo debe estar entre 1 y 120 meses desde hoy.");
-          }
-
-          const hoy = hoyISO();
-          const plan: PlanAhorro = {
-            id: nuevoId(),
-            nombre: input.nombre,
-            objetivo: input.objetivo,
-            icono: input.icono,
-            estado: "ACTIVO",
-            moneda: "USD",
-            montoMetaCentavos: input.montoMetaCentavos,
-            fechaObjetivo: input.fechaObjetivo,
-            cuotaMensualCentavos: simulacion.cuotaMensualCentavos,
-            plazoMeses: simulacion.plazoMeses,
-            prorrogasMeses: 0,
-            diaDebito: input.diaDebito,
-            cuentaDebito: sinSaldo(cuenta),
-            bloqueado: input.bloqueado,
-            bloqueadoDesde: input.bloqueado ? ahora() : null,
-            tasas: simulacion.tasas,
-            saldoCentavos: 0,
-            saldoDisponibleCentavos: 0,
-            interesesDevengadosCentavos: 0,
-            progreso: 0,
-            proximoDebito: proximoDebito(input.diaDebito),
-            fechaInicio: hoy,
-            fechaFinEstimada: input.fechaObjetivo,
-            creadoEn: ahora(),
-            actualizadoEn: ahora(),
-          };
-          set((state) => ({
-            planes: [plan, ...state.planes],
-            movimientos: { ...state.movimientos, [plan.id]: [] },
-          }));
-          return { ok: true, valor: plan.id };
-        },
-
-        // POST /v1/planes-ahorro/{planId}/aportes
-        aportar: (planId, montoCentavos, cuentaOrigenId) => {
-          const plan = buscarPlan(planId);
-          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
-          if (plan.estado !== "ACTIVO") {
-            return error("ESTADO_INVALIDO", "Solo se puede aportar a un Goallet activo.");
-          }
-          if (montoCentavos < 1) return error("VALIDACION", "Ingresa un monto válido.");
-          const cuenta = buscarCuenta(cuentaOrigenId);
-          if (!cuenta) return error("VALIDACION", "Elige una cuenta de origen válida.");
-          if ((cuenta.saldoDisponibleCentavos ?? 0) < montoCentavos) {
-            // En la API esto llega como Aporte FALLIDO con motivoFallo FONDOS_INSUFICIENTES.
-            return error("FONDOS_INSUFICIENTES", "La cuenta de origen no tiene saldo suficiente.");
-          }
-
-          const r = asentar(
-            plan,
-            get().movimientos[planId] ?? [],
-            "APORTE_MANUAL",
-            montoCentavos,
-            "Aporte voluntario",
-            cuentaEtiqueta(cuenta)
-          );
-          const estado = r.plan.saldoCentavos >= plan.montoMetaCentavos ? "COMPLETADO" : "ACTIVO";
-          guardar({ ...r.plan, estado }, r.movimientos, moverSaldoCuenta(cuentaOrigenId, -montoCentavos));
-          return { ok: true };
-        },
-
-        // POST /v1/planes-ahorro/{planId}/retiros
-        retirar: (planId, montoCentavos, cuentaDestinoId) => {
-          const plan = buscarPlan(planId);
-          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
-          if (plan.estado !== "ACTIVO") {
-            return error("ESTADO_INVALIDO", "Solo se puede retirar de un Goallet activo.");
-          }
-          if (plan.bloqueado) {
-            return error(
-              "RETIRO_NO_PERMITIDO",
-              "Este Goallet tiene los fondos bloqueados. Desbloquéalo antes de retirar."
-            );
-          }
-          if (montoCentavos < 1) return error("VALIDACION", "Ingresa un monto válido.");
-          if (montoCentavos > plan.saldoDisponibleCentavos) {
-            return error("SALDO_INSUFICIENTE", "El monto supera el saldo disponible del Goallet.");
-          }
-          const cuenta = buscarCuenta(cuentaDestinoId);
-          if (!cuenta) return error("VALIDACION", "Elige una cuenta de destino válida.");
-
-          const r = asentar(
-            plan,
-            get().movimientos[planId] ?? [],
-            "RETIRO",
-            -montoCentavos,
-            "Retiro de fondos",
-            cuentaEtiqueta(cuenta)
-          );
-          guardar(r.plan, r.movimientos, moverSaldoCuenta(cuentaDestinoId, montoCentavos));
-          return { ok: true };
-        },
-
-        // POST /v1/planes-ahorro/{planId}/bloqueo
-        bloquear: (planId) => {
-          const plan = buscarPlan(planId);
-          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
-          if (plan.estado !== "ACTIVO") {
-            return error("ESTADO_INVALIDO", "Solo se puede bloquear un Goallet activo.");
-          }
-          if (plan.bloqueado) return error("PLAN_YA_BLOQUEADO", "El Goallet ya está bloqueado.");
-
-          const conBono = calcularTasas(plan.plazoMeses, true);
-          const total = Math.round((plan.tasas.baseAnual + conBono.bonoBloqueoAnual) * 100) / 100;
-          guardar(
-            {
-              ...plan,
-              bloqueado: true,
-              bloqueadoDesde: ahora(),
-              tasas: {
-                baseAnual: plan.tasas.baseAnual,
-                bonoBloqueoAnual: conBono.bonoBloqueoAnual,
-                totalAnual: total,
-                efectivaAnual: tasaEfectiva(total),
-              },
-              actualizadoEn: ahora(),
-            },
-            get().movimientos[planId] ?? []
-          );
-          return { ok: true };
-        },
-
-        // POST /v1/planes-ahorro/{planId}/desbloqueo
-        desbloquear: (planId) => {
-          const plan = buscarPlan(planId);
-          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
-          if (plan.estado !== "ACTIVO") {
-            return error("ESTADO_INVALIDO", "Solo se puede desbloquear un Goallet activo.");
-          }
-          if (!plan.bloqueado) return error("PLAN_NO_BLOQUEADO", "El Goallet no está bloqueado.");
-
-          const r = aplicarSalidaBloqueo(
-            plan,
-            get().movimientos[planId] ?? [],
-            "Intereses perdidos por desbloqueo"
-          );
-          guardar(r.plan, r.movimientos);
-          return { ok: true, valor: r.perdidos };
-        },
-
-        // POST /v1/planes-ahorro/{planId}/cancelacion
-        cancelar: (planId, cuentaDestinoId) => {
-          const plan = buscarPlan(planId);
-          if (!plan) return error("NO_ENCONTRADO", "No encontramos ese Goallet.");
-          if (plan.estado !== "ACTIVO") {
-            return error("ESTADO_INVALIDO", "Solo se puede cancelar un Goallet activo.");
-          }
-          const cuenta = buscarCuenta(cuentaDestinoId ?? plan.cuentaDebito.id);
-          if (!cuenta) return error("VALIDACION", "Elige una cuenta de destino válida.");
-
-          const salida = aplicarSalidaBloqueo(
-            plan,
-            get().movimientos[planId] ?? [],
-            "Intereses perdidos por cancelación"
-          );
-          const devuelto = salida.plan.saldoCentavos;
-          let r: { plan: PlanAhorro; movimientos: Movimiento[] } = {
-            plan: salida.plan,
-            movimientos: salida.movimientos,
-          };
-          if (devuelto > 0) {
-            r = asentar(
-              salida.plan,
-              salida.movimientos,
-              "DEVOLUCION",
-              -devuelto,
-              "Devolución por cancelación",
-              cuentaEtiqueta(cuenta)
-            );
-          }
-          guardar(
-            { ...r.plan, estado: "CANCELADO", proximoDebito: null },
-            r.movimientos,
-            moverSaldoCuenta(cuenta.id, devuelto)
-          );
-          return { ok: true, valor: devuelto };
-        },
-      };
     },
-    // Clave nueva: los datos guardados con la forma anterior (montos en dólares) no son compatibles.
-    { name: "goallet-storage-v2", skipHydration: true }
-  )
-);
+
+    // GET /v1/planes-ahorro/{planId}
+    cargarPlan: async (planId) => {
+      try {
+        reemplazarPlan(await api<PlanAhorro>(`/v1/planes-ahorro/${planId}`));
+      } catch (error) {
+        set({ error: fallo(error).mensaje });
+      }
+    },
+
+    // GET /v1/cuentas-debito (camino síncrono hacia el Core)
+    cargarCuentas: async () => {
+      try {
+        const { items } = await api<{ items: CuentaDebito[] }>("/v1/cuentas-debito");
+        set({ cuentas: items });
+      } catch (error) {
+        set({ error: fallo(error).mensaje });
+      }
+    },
+
+    // GET /v1/tarifas (público, cacheado por el Gateway)
+    cargarTarifas: async () => {
+      if (get().tarifas) return;
+      try {
+        set({ tarifas: await api<TablaTarifas>("/v1/tarifas", { autenticado: false }) });
+      } catch {
+        /* sin tarifas solo se omite el texto del bono */
+      }
+    },
+
+    // GET /v1/planes-ahorro/{planId}/movimientos (paginación por cursor)
+    cargarMovimientos: async (planId, siguiente = false) => {
+      const actual = get().historial[planId];
+      const cursor =
+        siguiente && actual?.siguienteCursor ? `&cursor=${encodeURIComponent(actual.siguienteCursor)}` : "";
+      try {
+        const pagina = await api<PaginaCursor<Movimiento>>(`/v1/planes-ahorro/${planId}/movimientos?limite=10${cursor}`);
+        set((s) => ({
+          historial: {
+            ...s.historial,
+            [planId]: {
+              items: siguiente && actual ? [...actual.items, ...pagina.items] : pagina.items,
+              siguienteCursor: pagina.siguienteCursor,
+              hayMas: pagina.hayMas,
+            },
+          },
+        }));
+      } catch (error) {
+        set({ error: fallo(error).mensaje });
+      }
+    },
+
+    // POST /v1/planes-ahorro (Idempotency-Key)
+    crearPlan: async (input) => {
+      try {
+        const plan = await api<PlanAhorro>("/v1/planes-ahorro", { metodo: "POST", cuerpo: input, idempotente: true });
+        reemplazarPlan(plan);
+        void get().cargarPlanes();
+        return { ok: true, valor: plan.id };
+      } catch (error) {
+        return fallo(error);
+      }
+    },
+
+    // POST /v1/planes-ahorro/{planId}/aportes → 202
+    aportar: (planId, montoCentavos, cuentaOrigenId) =>
+      moverDinero(planId, `/v1/planes-ahorro/${planId}/aportes`, { montoCentavos, cuentaOrigenId }),
+
+    // POST /v1/planes-ahorro/{planId}/retiros → 202
+    retirar: (planId, montoCentavos, cuentaDestinoId) =>
+      moverDinero(planId, `/v1/planes-ahorro/${planId}/retiros`, { montoCentavos, cuentaDestinoId }),
+
+    // POST /v1/planes-ahorro/{planId}/bloqueo
+    bloquear: async (planId) => {
+      try {
+        reemplazarPlan(await api<PlanAhorro>(`/v1/planes-ahorro/${planId}/bloqueo`, { metodo: "POST" }));
+        return { ok: true };
+      } catch (error) {
+        return fallo(error);
+      }
+    },
+
+    // POST /v1/planes-ahorro/{planId}/desbloqueo (Idempotency-Key)
+    desbloquear: async (planId) => {
+      try {
+        const r = await api<{ plan: PlanAhorro; interesesPerdidosCentavos: number }>(
+          `/v1/planes-ahorro/${planId}/desbloqueo`,
+          { metodo: "POST", idempotente: true }
+        );
+        reemplazarPlan(r.plan);
+        void get().cargarMovimientos(planId);
+        return { ok: true, valor: r.interesesPerdidosCentavos };
+      } catch (error) {
+        return fallo(error);
+      }
+    },
+
+    // POST /v1/planes-ahorro/{planId}/cancelacion (Idempotency-Key); la devolución al Core es asíncrona
+    cancelar: async (planId, cuentaDestinoId) => {
+      try {
+        const r = await api<{ plan: PlanAhorro; montoDevueltoCentavos: number }>(
+          `/v1/planes-ahorro/${planId}/cancelacion`,
+          { metodo: "POST", cuerpo: cuentaDestinoId ? { cuentaDestinoId } : {}, idempotente: true }
+        );
+        reemplazarPlan(r.plan);
+        setTimeout(() => void refrescarTras(planId), 2500);
+        return { ok: true, valor: r.montoDevueltoCentavos };
+      } catch (error) {
+        return fallo(error);
+      }
+    },
+
+    limpiar: () => set({ planes: [], resumen: null, cuentas: [], historial: {}, planesCargados: false, error: null }),
+  };
+});
